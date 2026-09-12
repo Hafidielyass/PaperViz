@@ -59,6 +59,16 @@ Health of the whole stack in one call:
 curl http://localhost:8080/api/health
 ```
 
+Or run the smoke test, which checks every service and prints the aggregate view:
+
+```bash
+bash scripts/smoke-test.sh
+```
+
+Note: `docker compose up --wait` returns as soon as the one-shot `ollama-init`
+service exits, which can be before `backend` and `frontend` finish their health
+checks. Give it another ~30s, or use the smoke test to confirm.
+
 To use the GPU for Ollama, see [docs/OLLAMA.md](docs/OLLAMA.md):
 
 ```bash

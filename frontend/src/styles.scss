@@ -2,11 +2,29 @@
 
 :root {
   color-scheme: light dark;
+
+  --pv-bg: #ffffff;
+  --pv-fg: #171717;
+  --pv-muted: #737373;
+  --pv-border: #e5e5e5;
+  --pv-surface: #fafafa;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --pv-bg: #0a0a0a;
+    --pv-fg: #ededed;
+    --pv-muted: #a3a3a3;
+    --pv-border: #2a2a2a;
+    --pv-surface: #141414;
+  }
 }
 
 html,
 body {
   height: 100%;
   margin: 0;
+  background: var(--pv-bg);
+  color: var(--pv-fg);
   font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
 }

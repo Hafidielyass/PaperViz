@@ -88,7 +88,7 @@ public class SystemHealthController {
         if (body == null) {
             return "empty response";
         }
-        return body.length() > 160 ? body.substring(0, 160) + "…" : body.trim();
+        return body.length() > 160 ? body.substring(0, 160) + "..." : body.trim();
     }
 
     @FunctionalInterface

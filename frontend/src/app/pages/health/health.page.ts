@@ -12,7 +12,7 @@ import { SystemHealth } from '../../core/api.models';
     <section class="mx-auto max-w-3xl px-6 py-12">
       <header class="mb-8">
         <h1 class="text-3xl font-semibold tracking-tight">PaperViz</h1>
-        <p class="mt-1 text-sm text-neutral-500">
+        <p class="mt-1 text-sm" style="color: var(--pv-muted)">
           Stage 1 — every service is containerised. This page proves the Angular container can
           reach the API container, and that the API can reach Postgres, Ollama, GROBID and the
           render service.
@@ -20,7 +20,7 @@ import { SystemHealth } from '../../core/api.models';
       </header>
 
       @if (error()) {
-        <div class="rounded-lg border border-red-300 bg-red-50 p-4 text-sm text-red-800">
+        <div class="rounded-lg border border-red-400/60 bg-red-500/10 p-4 text-sm text-red-500">
           Cannot reach the backend: {{ error() }}
         </div>
       } @else if (health(); as h) {
@@ -31,10 +31,11 @@ import { SystemHealth } from '../../core/api.models';
             [class.bg-amber-500]="h.status !== 'UP'"
           ></span>
           <span class="font-medium">{{ h.service }}</span>
-          <span class="text-sm text-neutral-500">{{ h.status }}</span>
+          <span class="text-sm" style="color: var(--pv-muted)">{{ h.status }}</span>
         </div>
 
-        <ul class="divide-y divide-neutral-200 rounded-lg border border-neutral-200">
+        <ul class="divide-y rounded-lg border"
+          style="border-color: var(--pv-border); background: var(--pv-surface)">
           @for (dep of dependencies(h); track dep.name) {
             <li class="flex items-start gap-4 p-4">
               <span
@@ -45,9 +46,9 @@ import { SystemHealth } from '../../core/api.models';
               <div class="min-w-0 flex-1">
                 <div class="flex items-baseline justify-between gap-4">
                   <span class="font-medium">{{ dep.name }}</span>
-                  <span class="shrink-0 text-xs text-neutral-400">{{ dep.latencyMs }} ms</span>
+                  <span class="shrink-0 text-xs" style="color: var(--pv-muted)">{{ dep.latencyMs }} ms</span>
                 </div>
-                <p class="mt-1 truncate text-xs text-neutral-500">
+                <p class="mt-1 truncate text-xs" style="color: var(--pv-muted)">
                   {{ dep.detail || dep.error }}
                 </p>
               </div>
@@ -55,7 +56,7 @@ import { SystemHealth } from '../../core/api.models';
           }
         </ul>
       } @else {
-        <p class="text-sm text-neutral-500">Checking services…</p>
+        <p class="text-sm" style="color: var(--pv-muted)">Checking services...</p>
       }
     </section>
   `,

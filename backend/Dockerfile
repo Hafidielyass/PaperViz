@@ -18,11 +18,14 @@ RUN apt-get update \
  && apt-get install -y --no-install-recommends wget \
  && rm -rf /var/lib/apt/lists/*
 
-RUN useradd --system --create-home --uid 10001 paperviz
+# The media volume is shared with the render service. Both images pin the same
+# GID and the directory is group-writable + setgid, so whichever container
+# initialises the named volume, the other can still write into it.
+RUN groupadd --gid 10100 pvmedia  && useradd --system --create-home --uid 10001 --gid 10100 paperviz
 COPY --from=build /build/target/paperviz-backend-*.jar /app/app.jar
 
-RUN mkdir -p /data/media && chown -R paperviz:paperviz /data/media /app
+RUN mkdir -p /data/media  && chown -R paperviz:pvmedia /data/media /app  && chmod 2775 /data/media
 USER paperviz
 
 EXPOSE 8080
-ENTRYPOINT ["java", "-XX:MaxRAMPercentage=70", "-jar", "/app/app.jar"]
+ENTRYPOINT ["java", "-XX:MaxRAMPercentage=70", "-Dfile.encoding=UTF-8", "-jar", "/app/app.jar"]

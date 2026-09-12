@@ -76,11 +76,16 @@ services:
     environment:
       JAVA_OPTS: "-Xmx2g"
     healthcheck:
-      test: ["CMD-SHELL", "wget -q -O - http://localhost:8070/api/isalive | grep -q true"]
+      # This image ships neither curl nor wget — bash's /dev/tcp is the only probe available.
+      test:
+        - "CMD"
+        - "bash"
+        - "-c"
+        - "exec 3<>/dev/tcp/localhost/8070; printf 'GET /api/isalive HTTP/1.0\r\n\r\n' >&3; grep -q true <&3"
       interval: 10s
-      timeout: 5s
+      timeout: 10s
       retries: 30
-      start_period: 40s
+      start_period: 90s
     networks: [paperviz]
 
   render-service:
@@ -148,7 +153,8 @@ services:
     ports:
       - "${FRONTEND_PORT:-4200}:80"
     healthcheck:
-      test: ["CMD-SHELL", "wget -q -O /dev/null http://localhost:80/ || exit 1"]
+      # 127.0.0.1, not localhost: busybox wget prefers ::1 and would be refused.
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1:80/ || exit 1"]
       interval: 10s
       timeout: 5s
       retries: 20
