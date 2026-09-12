@@ -1,0 +1,12 @@
+# Overlay that hands the NVIDIA GPU to Ollama.
+# Requires Docker Desktop + WSL2 with the NVIDIA container toolkit (see docs/OLLAMA.md).
+#   docker compose -f docker-compose.yml -f docker-compose.gpu.yml up
+services:
+  ollama:
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]

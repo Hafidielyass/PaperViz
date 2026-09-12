@@ -1,0 +1,72 @@
+spring:
+  application:
+    name: paperviz-backend
+
+  datasource:
+    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5432/paperviz}
+    username: ${SPRING_DATASOURCE_USERNAME:paperviz}
+    password: ${SPRING_DATASOURCE_PASSWORD:paperviz}
+
+  jpa:
+    hibernate:
+      ddl-auto: validate          # Flyway owns the schema; JPA only checks it matches
+    open-in-view: false
+    properties:
+      hibernate.jdbc.time_zone: UTC
+
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+
+  servlet:
+    multipart:
+      max-file-size: 100MB
+      max-request-size: 100MB
+
+  ai:
+    ollama:
+      base-url: ${SPRING_AI_OLLAMA_BASE_URL:http://localhost:11434}
+      init:
+        pull-model-strategy: never   # the ollama-init compose service pulls models
+      chat:
+        options:
+          model: ${SPRING_AI_OLLAMA_CHAT_OPTIONS_MODEL:llama3.1:8b}
+          temperature: 0.2           # structured output — keep it tight
+      embedding:
+        options:
+          model: ${SPRING_AI_OLLAMA_EMBEDDING_OPTIONS_MODEL:nomic-embed-text}
+    vectorstore:
+      pgvector:
+        initialize-schema: true
+        index-type: HNSW
+        distance-type: COSINE_DISTANCE
+        dimensions: 768              # nomic-embed-text
+
+server:
+  port: 8080
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics
+  endpoint:
+    health:
+      show-details: always
+  health:
+    # Reaching Ollama/GROBID is checked by our own indicators, not by liveness
+    diskspace:
+      enabled: true
+
+paperviz:
+  media-root: ${PAPERVIZ_MEDIA_ROOT:./media}
+  grobid:
+    base-url: ${PAPERVIZ_GROBID_BASE_URL:http://localhost:8070}
+  render:
+    base-url: ${PAPERVIZ_RENDER_BASE_URL:http://localhost:8000}
+  # v1 is single-user; this row is seeded by V1__init.sql
+  default-owner-id: 00000000-0000-0000-0000-000000000001
+
+logging:
+  level:
+    dev.paperviz: ${LOG_LEVEL:INFO}

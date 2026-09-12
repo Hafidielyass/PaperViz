@@ -1,0 +1,10 @@
+# Active inside docker compose (SPRING_PROFILES_ACTIVE=docker).
+# Everything meaningful is already supplied as env vars by compose; this profile
+# exists so container-only tuning has a home.
+spring:
+  jpa:
+    properties:
+      hibernate.generate_statistics: false
+logging:
+  level:
+    org.springframework.web: INFO

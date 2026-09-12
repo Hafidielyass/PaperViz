@@ -1,0 +1,25 @@
+# Java
+backend/target/
+*.class
+
+# Node / Angular
+node_modules/
+frontend/dist/
+frontend/.angular/
+npm-debug.log*
+
+# Python
+__pycache__/
+*.py[cod]
+render-service/.venv/
+render-service/media/
+
+# Local env + media
+.env
+media/
+*.log
+
+# IDE
+.idea/
+.vscode/
+*.iml

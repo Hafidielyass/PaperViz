@@ -1,0 +1,5 @@
+# Stage 1: HTTP surface only. Manim + TTS land in stages 4 and 5, which rebuild this image.
+fastapi==0.115.6
+uvicorn[standard]==0.34.0
+pydantic==2.10.4
+python-multipart==0.0.20
