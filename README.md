@@ -118,6 +118,21 @@ docker-compose.yml
 
 ---
 
+## Testing
+
+Backend unit tests run inside the image build, which is the only place in this
+environment with a route to Maven Central:
+
+```bash
+docker compose build backend
+```
+
+Skip them for a fast iteration build:
+
+```bash
+docker compose build backend --build-arg SKIP_TESTS=true
+```
+
 ## Auth
 
 v1 runs **single-user with no login**. Every paper is owned by a seeded `local`
@@ -133,7 +148,7 @@ not a schema migration.
 | Stage | What | State |
 |---|---|---|
 | 1 | Full containerised stack + end-to-end health check | ✅ done |
-| 2 | Upload → GROBID → sections in Postgres → shown in Angular | ⬜ |
+| 2 | Upload → GROBID → sections in Postgres → shown in Angular | ✅ done |
 | 3 | Spring AI + Ollama: concept extraction + storyboard JSON | ⬜ |
 | 4 | Manim microservice: code gen, validation gates, render | ⬜ |
 | 5 | TTS narration synced to video | ⬜ |

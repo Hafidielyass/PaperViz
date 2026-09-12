@@ -7,7 +7,12 @@ COPY pom.xml .
 RUN mvn -B -q dependency:go-offline
 
 COPY src ./src
-RUN mvn -B -q clean package -DskipTests
+
+# Tests run as part of the image build, because this is the only place with a
+# working route to Maven Central in this environment. Pass --build-arg
+# SKIP_TESTS=true for a fast iteration build.
+ARG SKIP_TESTS=false
+RUN mvn -B clean package -DskipTests=${SKIP_TESTS}
 
 # ---- runtime ----
 FROM eclipse-temurin:21-jre
@@ -21,10 +26,13 @@ RUN apt-get update \
 # The media volume is shared with the render service. Both images pin the same
 # GID and the directory is group-writable + setgid, so whichever container
 # initialises the named volume, the other can still write into it.
-RUN groupadd --gid 10100 pvmedia  && useradd --system --create-home --uid 10001 --gid 10100 paperviz
+RUN groupadd --gid 10100 pvmedia \
+ && useradd --system --create-home --uid 10001 --gid 10100 paperviz
 COPY --from=build /build/target/paperviz-backend-*.jar /app/app.jar
 
-RUN mkdir -p /data/media  && chown -R paperviz:pvmedia /data/media /app  && chmod 2775 /data/media
+RUN mkdir -p /data/media \
+ && chown -R paperviz:pvmedia /data/media /app \
+ && chmod 2775 /data/media
 USER paperviz
 
 EXPOSE 8080
