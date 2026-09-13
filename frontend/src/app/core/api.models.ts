@@ -19,6 +19,9 @@ export type PaperStatus =
   | 'PARSED'
   | 'ANALYZING'
   | 'ANALYZED'
+  // Turning the parsed paper into the explainer segments a reader sees.
+  | 'WRITING'
+  | 'WRITTEN'
   | 'RENDERING'
   | 'READY'
   | 'FAILED';
@@ -63,7 +66,13 @@ export interface ApiError {
 }
 
 /** Statuses where the pipeline is still working and the client should keep polling. */
-export const IN_PROGRESS: readonly PaperStatus[] = ['UPLOADED', 'PARSING', 'ANALYZING', 'RENDERING'];
+export const IN_PROGRESS: readonly PaperStatus[] = [
+  'UPLOADED',
+  'PARSING',
+  'ANALYZING',
+  'WRITING',
+  'RENDERING',
+];
 
 export function isInProgress(status: PaperStatus): boolean {
   return IN_PROGRESS.includes(status);
@@ -162,5 +171,36 @@ export interface RenderStatus {
 export interface RenderBatchStarted {
   paperId: string;
   queued: number;
+  message: string;
+}
+
+// ---------------------------------------------------------------------------
+// The explainer: what the reader actually sees
+// ---------------------------------------------------------------------------
+
+export interface SegmentView {
+  id: string;
+  ordinal: number;
+  title: string;
+  /** Plain-language prose. Paragraphs separated by a blank line. */
+  body: string;
+  keyTakeaway: string | null;
+  latex: string | null;
+  sourceOrdinals: number[];
+  storyboard: Storyboard | StoryboardRejection | null;
+  narration: string | null;
+  videoUrl: string;
+}
+
+export interface Explainer {
+  paper: PaperSummary;
+  segments: SegmentView[];
+  defaultSegmentCount: number;
+}
+
+export interface WriteStarted {
+  paperId: string;
+  count: number;
+  storyboard: boolean;
   message: string;
 }

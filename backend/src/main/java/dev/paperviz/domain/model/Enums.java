@@ -11,8 +11,13 @@ public final class Enums {
         OPEN_ACCESS_URL
     }
 
+    /**
+     * WRITING/WRITTEN cover turning the parsed paper into the handful of
+     * explainer segments a reader sees; they sit between analysis and rendering.
+     */
     public enum PaperStatus {
-        UPLOADED, PARSING, PARSED, ANALYZING, ANALYZED, RENDERING, READY, FAILED
+        UPLOADED, PARSING, PARSED, ANALYZING, ANALYZED,
+        WRITING, WRITTEN, RENDERING, READY, FAILED
     }
 
     public enum SectionType {

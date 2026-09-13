@@ -6,6 +6,8 @@ import { catchError } from 'rxjs/operators';
 import {
   ApiError,
   ConceptView,
+  Explainer,
+  WriteStarted,
   RenderBatchStarted,
   RenderResult,
   RenderStatus,
@@ -121,6 +123,28 @@ export class ApiService {
 
   videoUrl(conceptId: string): string {
     return `${this.base}/concepts/${conceptId}/video`;
+  }
+
+  // --- the explainer --------------------------------------------------------
+
+  getExplainer(paperId: string): Observable<Explainer> {
+    return this.http
+      .get<Explainer>(`${this.base}/papers/${paperId}/explainer`)
+      .pipe(catchError(toMessage));
+  }
+
+  /** Fire and forget: several minutes of model time. Poll the explainer for progress. */
+  writeExplainer(paperId: string, count = 5, storyboard = true): Observable<WriteStarted> {
+    return this.http
+      .post<WriteStarted>(
+        `${this.base}/papers/${paperId}/write?count=${count}&storyboard=${storyboard}`, {})
+      .pipe(catchError(toMessage));
+  }
+
+  renderSegment(segmentId: string, quality = 'medium'): Observable<RenderResult> {
+    return this.http
+      .post<RenderResult>(`${this.base}/segments/${segmentId}/render?quality=${quality}`, {})
+      .pipe(catchError(toMessage));
   }
 }
 

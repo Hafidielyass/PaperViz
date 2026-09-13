@@ -34,6 +34,23 @@ public class RenderJobRunner {
         run(conceptId, quality);
     }
 
+    @Async("paperVizExecutor")
+    public void submitSegment(UUID segmentId, String quality) {
+        runSegment(segmentId, quality);
+    }
+
+    /** Segment equivalent of {@link #run(UUID, String)}. */
+    public Outcome runSegment(UUID segmentId, String quality) {
+        ClaimResult claim;
+        try {
+            claim = renderService.claimSegment(segmentId);
+        } catch (Exception e) {
+            log.error("could not claim segment {} for rendering", segmentId, e);
+            return new Outcome(false, null, e.getMessage());
+        }
+        return execute(claim, quality, "segment " + segmentId);
+    }
+
     /** Synchronous entry point, used by the async path and for a single-render demo. */
     public Outcome run(UUID conceptId, String quality) {
         ClaimResult claim;
@@ -44,6 +61,11 @@ public class RenderJobRunner {
             return new Outcome(false, null, e.getMessage());
         }
 
+        return execute(claim, quality, "concept " + conceptId);
+    }
+
+    /** Shared body: both concepts and segments render the same way once claimed. */
+    private Outcome execute(ClaimResult claim, String quality, String what) {
         if (claim.cacheHit()) {
             return new Outcome(true, claim.videoPath(), "Reused cached render.");
         }
@@ -70,7 +92,7 @@ public class RenderJobRunner {
             return new Outcome(true, response.videoPath(), null);
 
         } catch (Exception e) {
-            log.error("render {} threw", renderId, e);
+            log.error("render {} for {} threw", renderId, what, e);
             renderService.fail(renderId, e.getMessage());
             return new Outcome(false, null, e.getMessage());
         }

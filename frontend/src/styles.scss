@@ -1,5 +1,8 @@
 @use "tailwindcss";
 
+// KaTeX ships its own stylesheet; without it every formula renders unstyled.
+@import "katex/dist/katex.min.css";
+
 :root {
   color-scheme: light dark;
 

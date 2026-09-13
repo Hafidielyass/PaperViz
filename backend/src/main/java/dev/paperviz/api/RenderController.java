@@ -2,7 +2,9 @@ package dev.paperviz.api;
 
 import dev.paperviz.config.PaperVizProperties;
 import dev.paperviz.domain.model.Concept;
+import dev.paperviz.ai.SegmentService;
 import dev.paperviz.domain.model.Render;
+import dev.paperviz.domain.model.Segment;
 import dev.paperviz.domain.repo.ConceptRepository;
 import dev.paperviz.domain.repo.PaperRepository;
 import dev.paperviz.rendering.RenderJobRunner;
@@ -40,17 +42,20 @@ public class RenderController {
     private final RenderService renderService;
     private final ConceptRepository concepts;
     private final PaperRepository papers;
+    private final SegmentService segments;
     private final PaperVizProperties props;
 
     public RenderController(RenderJobRunner renderJobs,
                             RenderService renderService,
                             ConceptRepository concepts,
                             PaperRepository papers,
+                            SegmentService segments,
                             PaperVizProperties props) {
         this.renderJobs = renderJobs;
         this.renderService = renderService;
         this.concepts = concepts;
         this.papers = papers;
+        this.segments = segments;
         this.props = props;
     }
 
@@ -124,6 +129,16 @@ public class RenderController {
 
         Render render = renderService.forConcept(conceptId)
                 .orElseThrow(() -> new ResponseStatusException(NOT_FOUND, "Nothing rendered yet."));
+        return streamVideo(render);
+    }
+
+    /**
+     * Streams a rendered file from the media root.
+     *
+     * Resolving through the root and checking the prefix means a stored path
+     * cannot escape it, however it got into the database.
+     */
+    private ResponseEntity<Resource> streamVideo(Render render) {
         if (render.getVideoPath() == null) {
             throw new ResponseStatusException(NOT_FOUND, "Nothing rendered yet.");
         }
@@ -140,6 +155,60 @@ public class RenderController {
                 .header(HttpHeaders.ACCEPT_RANGES, "bytes")
                 .header(HttpHeaders.CACHE_CONTROL, "private, max-age=3600")
                 .body(new FileSystemResource(file));
+    }
+
+    // --- segments: the reader-facing unit ------------------------------------
+
+    @PostMapping("/segments/{segmentId}/render")
+    public RenderDtos.RenderResult renderSegment(@PathVariable UUID segmentId,
+                                                 @RequestParam(defaultValue = "medium") String quality) {
+        long started = System.currentTimeMillis();
+        Outcome outcome = renderJobs.runSegment(segmentId, quality);
+        long elapsed = System.currentTimeMillis() - started;
+
+        log.info("segment {} render finished in {} ms: ok={}", segmentId, elapsed, outcome.ok());
+        return new RenderDtos.RenderResult(
+                segmentId, outcome.ok(),
+                outcome.ok() ? "/api/segments/" + segmentId + "/video" : null,
+                outcome.message(), elapsed);
+    }
+
+    /** Renders every storyboarded segment of a paper. Fire and forget. */
+    @PostMapping("/papers/{paperId}/render-segments")
+    public RenderDtos.RenderBatchStarted renderPaperSegments(
+            @PathVariable UUID paperId,
+            @RequestParam(defaultValue = "medium") String quality) {
+        requirePaper(paperId);
+        List<Segment> renderable = segments.forPaper(paperId).stream()
+                .filter(s -> s.getStoryboardJson() != null
+                        && !s.getStoryboardJson().isBlank()
+                        && !s.getStoryboardJson().contains("\"problems\""))
+                .toList();
+
+        renderable.forEach(s -> renderJobs.submitSegment(s.getId(), quality));
+
+        return new RenderDtos.RenderBatchStarted(paperId, renderable.size(),
+                "Rendering %d animation(s).".formatted(renderable.size()));
+    }
+
+    @GetMapping("/segments/{segmentId}/render")
+    public RenderDtos.RenderStatus segmentStatus(@PathVariable UUID segmentId) {
+        return renderService.forSegment(segmentId)
+                .map(r -> new RenderDtos.RenderStatus(
+                        segmentId,
+                        r.getStatus().name(),
+                        r.getVideoPath() == null ? null : "/api/segments/" + segmentId + "/video",
+                        r.getDurationSeconds() == null ? null : r.getDurationSeconds().doubleValue(),
+                        r.getRetryCount(),
+                        r.getLastError()))
+                .orElse(new RenderDtos.RenderStatus(segmentId, "NONE", null, null, 0, null));
+    }
+
+    @GetMapping("/segments/{segmentId}/video")
+    public ResponseEntity<Resource> segmentVideo(@PathVariable UUID segmentId) {
+        Render render = renderService.forSegment(segmentId)
+                .orElseThrow(() -> new ResponseStatusException(NOT_FOUND, "Nothing rendered yet."));
+        return streamVideo(render);
     }
 
     private Concept requireConcept(UUID conceptId) {

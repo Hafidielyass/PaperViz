@@ -22,8 +22,15 @@ public class Render {
     @GeneratedValue
     private UUID id;
 
-    @Column(name = "concept_id", nullable = false, unique = true)
+    /**
+     * A render belongs to exactly one of these, enforced by a check constraint.
+     * Segments are the reader-facing unit; concepts remain for the debug view.
+     */
+    @Column(name = "concept_id")
     private UUID conceptId;
+
+    @Column(name = "segment_id")
+    private UUID segmentId;
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
@@ -77,6 +84,14 @@ public class Render {
 
     public void setConceptId(UUID conceptId) {
         this.conceptId = conceptId;
+    }
+
+    public UUID getSegmentId() {
+        return segmentId;
+    }
+
+    public void setSegmentId(UUID segmentId) {
+        this.segmentId = segmentId;
     }
 
     public RenderStatus getStatus() {

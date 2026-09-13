@@ -3,8 +3,10 @@ package dev.paperviz.rendering;
 import dev.paperviz.domain.model.Concept;
 import dev.paperviz.domain.model.Enums.RenderStatus;
 import dev.paperviz.domain.model.Render;
+import dev.paperviz.domain.model.Segment;
 import dev.paperviz.domain.repo.ConceptRepository;
 import dev.paperviz.domain.repo.RenderRepository;
+import dev.paperviz.domain.repo.SegmentRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
@@ -32,10 +34,14 @@ public class RenderService {
 
     private final RenderRepository renders;
     private final ConceptRepository concepts;
+    private final SegmentRepository segments;
 
-    public RenderService(RenderRepository renders, ConceptRepository concepts) {
+    public RenderService(RenderRepository renders,
+                         ConceptRepository concepts,
+                         SegmentRepository segments) {
         this.renders = renders;
         this.concepts = concepts;
+        this.segments = segments;
     }
 
     /**
@@ -113,9 +119,58 @@ public class RenderService {
         });
     }
 
+    /** Segment equivalent of {@link #claim(UUID)}. Same caching and retry rules. */
+    @Transactional
+    public ClaimResult claimSegment(UUID segmentId) {
+        Segment segment = segments.findById(segmentId)
+                .orElseThrow(() -> new IllegalArgumentException("No such segment: " + segmentId));
+
+        String storyboard = segment.getStoryboardJson();
+        if (storyboard == null || storyboard.isBlank() || storyboard.contains("\"problems\"")) {
+            return ClaimResult.nothingToDo("This segment has no usable storyboard.");
+        }
+
+        String cacheKey = sha256(storyboard);
+
+        Render render = renders.findBySegmentId(segmentId).orElseGet(() -> {
+            Render fresh = new Render();
+            fresh.setSegmentId(segmentId);
+            return fresh;
+        });
+
+        if (render.getStatus() == RenderStatus.READY
+                && cacheKey.equals(render.getCacheKey())
+                && render.getVideoPath() != null) {
+            log.info("segment {} already rendered from an identical storyboard", segmentId);
+            return ClaimResult.cached(render.getId(), render.getVideoPath());
+        }
+        if (render.getStatus() == RenderStatus.RENDERING) {
+            return ClaimResult.nothingToDo("This segment is already rendering.");
+        }
+        if (render.getRetryCount() >= MAX_RETRIES && !cacheKey.equals(render.getCacheKey())) {
+            render.setRetryCount(0);
+        }
+        if (render.getRetryCount() >= MAX_RETRIES) {
+            return ClaimResult.nothingToDo(
+                    "Rendering failed %d times for this storyboard.".formatted(MAX_RETRIES));
+        }
+
+        render.setStatus(RenderStatus.RENDERING);
+        render.setCacheKey(cacheKey);
+        render.setLastError(null);
+        render = renders.save(render);
+
+        return ClaimResult.claimed(render.getId(), storyboard);
+    }
+
     @Transactional(readOnly = true)
     public Optional<Render> forConcept(UUID conceptId) {
         return renders.findByConceptId(conceptId);
+    }
+
+    @Transactional(readOnly = true)
+    public Optional<Render> forSegment(UUID segmentId) {
+        return renders.findBySegmentId(segmentId);
     }
 
     private String sha256(String value) {

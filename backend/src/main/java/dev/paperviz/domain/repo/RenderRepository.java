@@ -11,6 +11,8 @@ public interface RenderRepository extends JpaRepository<Render, UUID> {
 
     Optional<Render> findByConceptId(UUID conceptId);
 
+    Optional<Render> findBySegmentId(UUID segmentId);
+
     /** A READY render with the same cache key can be reused verbatim. */
     Optional<Render> findFirstByCacheKeyAndStatus(String cacheKey, dev.paperviz.domain.model.Enums.RenderStatus status);
 

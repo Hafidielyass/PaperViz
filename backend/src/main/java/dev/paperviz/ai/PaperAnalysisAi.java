@@ -115,14 +115,47 @@ public class PaperAnalysisAi {
      * first attempt breaks the timing or beat-count rules.
      */
     public StoryboardResult buildStoryboard(String paperTitle, Section section, ConceptCandidate concept) {
+        return buildStoryboard(
+                paperTitle,
+                nullSafe(section.getHeading(), "(untitled section)"),
+                nullSafe(concept.title(), "Concept"),
+                concept.conceptType() == null ? "OTHER" : concept.conceptType().name(),
+                nullSafe(concept.description(), ""),
+                section.getRawText(),
+                section.getLatex());
+    }
+
+    /**
+     * Builds a storyboard for one explainer segment.
+     *
+     * A segment spans several parsed sections, so its source text is assembled
+     * by the caller rather than read off a single Section.
+     */
+    public StoryboardResult buildStoryboardForSegment(String paperTitle,
+                                                      String segmentTitle,
+                                                      String focus,
+                                                      String sourceText,
+                                                      String formulas) {
+        return buildStoryboard(
+                paperTitle, segmentTitle, segmentTitle, "OTHER", focus, sourceText, formulas);
+    }
+
+    private StoryboardResult buildStoryboard(String paperTitle,
+                                             String heading,
+                                             String conceptTitle,
+                                             String conceptType,
+                                             String conceptDescription,
+                                             String sourceText,
+                                             String formulas) {
         Map<String, Object> base = Map.of(
                 "paperTitle", nullSafe(paperTitle, "Untitled"),
-                "heading", nullSafe(section.getHeading(), "(untitled section)"),
-                "conceptTitle", nullSafe(concept.title(), "Concept"),
-                "conceptType", concept.conceptType() == null ? "OTHER" : concept.conceptType().name(),
-                "conceptDescription", nullSafe(concept.description(), ""),
-                "sectionText", truncate(section.getRawText()),
-                "formulas", nullSafe(section.getLatex(), "(none)"));
+                "heading", nullSafe(heading, "(untitled section)"),
+                "conceptTitle", nullSafe(conceptTitle, "Concept"),
+                "conceptType", nullSafe(conceptType, "OTHER"),
+                "conceptDescription", nullSafe(conceptDescription, ""),
+                "sectionText", truncate(sourceText),
+                "formulas", nullSafe(formulas, "(none)"));
+        String label = nullSafe(conceptTitle, "concept");
 
         String correction = "";
         StoryboardValidator.Result lastCheck = null;
@@ -143,7 +176,7 @@ public class PaperAnalysisAi {
                 sb = request.call().entity(Storyboard.class);
             } catch (Exception e) {
                 log.warn("storyboard attempt {}/{} for '{}' failed to parse: {}",
-                        attempt, MAX_ATTEMPTS, concept.title(), e.getMessage());
+                        attempt, MAX_ATTEMPTS, label, e.getMessage());
                 correction = "Your previous reply was not valid JSON matching the requested "
                         + "shape. Return only the JSON object, nothing else.";
                 continue;
@@ -152,7 +185,7 @@ public class PaperAnalysisAi {
             lastCheck = validator.validate(sb);
             if (lastCheck.ok()) {
                 log.info("storyboard for '{}' accepted on attempt {} ({} beats)",
-                        concept.title(), attempt, sb.safeBeats().size());
+                        label, attempt, sb.safeBeats().size());
                 return new StoryboardResult(sb, attempt, List.of());
             }
 
@@ -164,14 +197,14 @@ public class PaperAnalysisAi {
                 StoryboardValidator.Result afterRepair = validator.validate(repaired);
                 if (afterRepair.ok()) {
                     log.info("storyboard for '{}' accepted on attempt {} after timing repair",
-                            concept.title(), attempt);
+                            label, attempt);
                     return new StoryboardResult(repaired, attempt, List.of());
                 }
                 lastCheck = afterRepair;
             }
 
             log.warn("storyboard attempt {}/{} for '{}' rejected: {}",
-                    attempt, MAX_ATTEMPTS, concept.title(), lastCheck.describe());
+                    attempt, MAX_ATTEMPTS, label, lastCheck.describe());
             correction = "Your previous storyboard was rejected for these reasons: "
                     + lastCheck.describe()
                     + " Fix every one of them. The beat durations must sum exactly to totalSeconds.";

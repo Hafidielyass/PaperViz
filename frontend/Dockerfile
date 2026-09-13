@@ -3,7 +3,10 @@ FROM node:22-alpine AS build
 WORKDIR /build
 
 COPY package.json package-lock.json ./
-RUN npm ci
+# BuildKit cache mount: the npm cache survives across builds, so a network
+# failure part-way through does not mean re-downloading everything on retry.
+# This machine's connection drops often enough that it matters.
+RUN --mount=type=cache,target=/root/.npm     npm ci --prefer-offline --no-audit --fund=false
 
 COPY . .
 RUN npm run build -- --configuration production

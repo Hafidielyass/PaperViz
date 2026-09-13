@@ -6,6 +6,11 @@ export const routes: Routes = [
     loadComponent: () => import('./pages/library/library.page').then((m) => m.LibraryPage),
   },
   {
+    // The explainer is the product; the verbatim section view is the debug surface.
+    path: 'read/:id',
+    loadComponent: () => import('./pages/reader/reader.page').then((m) => m.ReaderPage),
+  },
+  {
     path: 'papers/:id',
     loadComponent: () => import('./pages/paper/paper.page').then((m) => m.PaperPage),
   },
