@@ -40,6 +40,38 @@ public final class AiModels {
         }
     }
 
+    // --- the explainer plan: which handful of moments carry the paper --------
+
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    public record SegmentPlanItem(
+            Integer ordinal,
+            String title,
+            String focus,
+            List<Integer> sourceOrdinals
+    ) {
+        public List<Integer> safeSourceOrdinals() {
+            return sourceOrdinals == null ? List.of() : sourceOrdinals;
+        }
+    }
+
+    /** Wrapper object — small models handle a named list far better than a bare array. */
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    public record SegmentPlan(List<SegmentPlanItem> segments) {
+        public List<SegmentPlanItem> safeSegments() {
+            return segments == null ? List.of() : segments;
+        }
+    }
+
+    /** The written explainer text for one segment. */
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    public record SegmentCopy(
+            String title,
+            String body,
+            String keyTakeaway,
+            String latex
+    ) {
+    }
+
     @JsonIgnoreProperties(ignoreUnknown = true)
     public record StoryboardBeat(
             Integer order,

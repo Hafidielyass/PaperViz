@@ -135,3 +135,32 @@ export function isStoryboard(
 ): value is Storyboard {
   return value !== null && 'beats' in value;
 }
+
+// ---------------------------------------------------------------------------
+// Rendering (stage 4)
+// ---------------------------------------------------------------------------
+
+export type RenderState = 'NONE' | 'PENDING' | 'GENERATING' | 'VALIDATING' | 'RENDERING' | 'READY' | 'FAILED';
+
+export interface RenderResult {
+  conceptId: string;
+  ok: boolean;
+  videoUrl: string | null;
+  message: string | null;
+  elapsedMs: number;
+}
+
+export interface RenderStatus {
+  conceptId: string;
+  status: RenderState;
+  videoUrl: string | null;
+  durationSeconds: number | null;
+  retryCount: number;
+  lastError: string | null;
+}
+
+export interface RenderBatchStarted {
+  paperId: string;
+  queued: number;
+  message: string;
+}

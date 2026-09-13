@@ -6,6 +6,9 @@ import { catchError } from 'rxjs/operators';
 import {
   ApiError,
   ConceptView,
+  RenderBatchStarted,
+  RenderResult,
+  RenderStatus,
   PaperDetail,
   PaperSummary,
   SectionAnalysisResult,
@@ -93,6 +96,31 @@ export class ApiService {
     return this.http
       .post(`${this.base}/papers/${paperId}/analyze?storyboard=${storyboard}`, {})
       .pipe(catchError(toMessage));
+  }
+
+  // --- rendering ------------------------------------------------------------
+
+  /** Renders one concept and waits. A Manim render is a minute or two. */
+  renderConcept(conceptId: string, quality = 'medium'): Observable<RenderResult> {
+    return this.http
+      .post<RenderResult>(`${this.base}/concepts/${conceptId}/render?quality=${quality}`, {})
+      .pipe(catchError(toMessage));
+  }
+
+  renderStatus(conceptId: string): Observable<RenderStatus> {
+    return this.http
+      .get<RenderStatus>(`${this.base}/concepts/${conceptId}/render`)
+      .pipe(catchError(toMessage));
+  }
+
+  renderPaper(paperId: string, quality = 'medium'): Observable<RenderBatchStarted> {
+    return this.http
+      .post<RenderBatchStarted>(`${this.base}/papers/${paperId}/render?quality=${quality}`, {})
+      .pipe(catchError(toMessage));
+  }
+
+  videoUrl(conceptId: string): string {
+    return `${this.base}/concepts/${conceptId}/video`;
   }
 }
 

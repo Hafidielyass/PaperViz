@@ -1,5 +1,14 @@
-import { ChangeDetectionStrategy, Component, computed, input } from '@angular/core';
+import {
+  ChangeDetectionStrategy,
+  Component,
+  afterNextRender,
+  computed,
+  inject,
+  input,
+  signal,
+} from '@angular/core';
 
+import { ApiService } from '../../core/api.service';
 import { ConceptView, isRejection, isStoryboard } from '../../core/api.models';
 
 /**
@@ -96,11 +105,99 @@ import { ConceptView, isRejection, isStoryboard } from '../../core/api.models';
           Concept found, but no storyboard was generated for it.
         </p>
       }
+
+      @if (board()) {
+        <div class="mt-4 border-t pt-3" style="border-color: var(--pv-border)">
+          @if (videoUrl(); as url) {
+            <video
+              [src]="url"
+              controls
+              playsinline
+              preload="metadata"
+              class="w-full rounded"
+              style="background: #000; max-height: 420px"
+            ></video>
+            @if (renderMs(); as ms) {
+              <p class="mt-1.5 text-xs" style="color: var(--pv-muted)">
+                Rendered in {{ (ms / 1000).toFixed(0) }}s
+              </p>
+            }
+          } @else {
+            <div class="flex flex-wrap items-center gap-3">
+              <button
+                type="button"
+                class="rounded px-2.5 py-1 text-xs font-medium"
+                style="background: rgba(16,185,129,0.15); color: #10b981"
+                [disabled]="rendering()"
+                (click)="renderVideo()"
+              >
+                {{ rendering() ? 'Rendering…' : 'Render animation' }}
+              </button>
+              @if (rendering()) {
+                <span class="text-xs" style="color: var(--pv-muted)">
+                  Manim is drawing {{ board()!.beats.length }} beats — a minute or two.
+                </span>
+              }
+            </div>
+          }
+
+          @if (renderError(); as err) {
+            <div class="mt-2 rounded border border-red-400/50 bg-red-500/10 p-2.5 text-xs text-red-500">
+              {{ err }}
+            </div>
+          }
+        </div>
+      }
     </article>
   `,
 })
 export class ConceptCard {
+  private readonly api = inject(ApiService);
+
   readonly concept = input.required<ConceptView>();
+
+  readonly rendering = signal(false);
+  readonly videoUrl = signal<string | null>(null);
+  readonly renderError = signal<string | null>(null);
+  readonly renderMs = signal<number | null>(null);
+
+  constructor() {
+    // A video may already exist from an earlier session; rendering is minutes
+    // of compute, so check before offering to do it again.
+    afterNextRender(() => {
+      this.api.renderStatus(this.concept().id).subscribe({
+        next: (status) => {
+          if (status.status === 'READY' && status.videoUrl) {
+            this.videoUrl.set(status.videoUrl);
+          } else if (status.status === 'FAILED' && status.lastError) {
+            this.renderError.set(status.lastError);
+          }
+        },
+        error: () => undefined,
+      });
+    });
+  }
+
+  renderVideo(): void {
+    this.rendering.set(true);
+    this.renderError.set(null);
+
+    this.api.renderConcept(this.concept().id).subscribe({
+      next: (result) => {
+        this.rendering.set(false);
+        this.renderMs.set(result.elapsedMs);
+        if (result.ok && result.videoUrl) {
+          this.videoUrl.set(result.videoUrl);
+        } else {
+          this.renderError.set(result.message ?? 'Rendering failed.');
+        }
+      },
+      error: (e: Error) => {
+        this.rendering.set(false);
+        this.renderError.set(e.message);
+      },
+    });
+  }
 
   readonly board = computed(() => {
     const sb = this.concept().storyboard;
