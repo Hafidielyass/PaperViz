@@ -80,6 +80,43 @@ def build_equation(scene_spec: dict[str, Any]):
         return fit(Text(latex, font_size=BODY_SIZE, color=WHITE, font="monospace"))
 
 
+def nice_axis(values: list[float], target_ticks: int = 4) -> tuple[float, float, float]:
+    """Picks an axis range and step a person would have chosen.
+
+    Dividing the data range by four gives ticks like 16.330 and 24.495, which
+    look like a bug even when the bars are correct. This snaps the step to a
+    1/2/5 x 10^n value and rounds the bounds outward to a multiple of it.
+    """
+    import math
+
+    top = max(values + [0.0])
+    bottom = min(values + [0.0])
+    if top == bottom:
+        top = bottom + 1.0
+
+    span = top - bottom
+    rough = span / max(target_ticks, 1)
+    magnitude = 10 ** math.floor(math.log10(rough)) if rough > 0 else 1.0
+    normalised = rough / magnitude
+
+    if normalised <= 1:
+        step = 1 * magnitude
+    elif normalised <= 2:
+        step = 2 * magnitude
+    elif normalised <= 5:
+        step = 5 * magnitude
+    else:
+        step = 10 * magnitude
+
+    axis_min = math.floor(min(bottom, 0.0) / step) * step
+    # One extra step of headroom so the tallest bar is not flush with the top.
+    axis_max = math.ceil(top / step) * step
+    if axis_max <= top:
+        axis_max += step
+
+    return axis_min, axis_max, step
+
+
 def build_chart(scene_spec: dict[str, Any]):
     """A bar chart from explicit categories and series.
 
@@ -99,12 +136,7 @@ def build_chart(scene_spec: dict[str, Any]):
         log.warning("chart series length %d != categories %d", len(values), len(categories))
         return None
 
-    top = max(values + [0.0])
-    bottom = min(values + [0.0])
-    # Pad the axis so the tallest bar is not flush with the top of the plot.
-    y_max = top * 1.15 if top > 0 else 1.0
-    y_min = bottom * 1.15 if bottom < 0 else 0.0
-    step = (y_max - y_min) / 4 if y_max > y_min else 1.0
+    y_min, y_max, step = nice_axis(values)
 
     bars = BarChart(
         values=values,
