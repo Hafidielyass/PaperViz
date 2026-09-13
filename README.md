@@ -36,8 +36,14 @@ in the UI, so they cannot be skipped by calling the API directly.
 
 ```bash
 cp .env.example .env
-docker compose up --build
+./scripts/up.sh
 ```
+
+`up.sh` picks the GPU overlay when an NVIDIA GPU is actually reachable from a
+container. That matters more than it sounds: on a machine where Docker's VM is
+small, CPU inference does not merely run slowly — `llama-server` is OOM-killed
+mid-load and the API returns `signal: killed`, while Ollama's own health check
+keeps passing. Plain `docker compose up --build` still works and stays CPU-only.
 
 Then open <http://localhost:4200>.
 
@@ -149,7 +155,7 @@ not a schema migration.
 |---|---|---|
 | 1 | Full containerised stack + end-to-end health check | ✅ done |
 | 2 | Upload → GROBID → sections in Postgres → shown in Angular | ✅ done |
-| 3 | Spring AI + Ollama: concept extraction + storyboard JSON | ⬜ |
+| 3 | Spring AI + Ollama: concept extraction + storyboard JSON | ✅ done |
 | 4 | Manim microservice: code gen, validation gates, render | ⬜ |
 | 5 | TTS narration synced to video | ⬜ |
 | 6 | Open-access URL path + Unpaywall | ⬜ |

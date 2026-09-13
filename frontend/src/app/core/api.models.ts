@@ -68,3 +68,70 @@ export const IN_PROGRESS: readonly PaperStatus[] = ['UPLOADED', 'PARSING', 'ANAL
 export function isInProgress(status: PaperStatus): boolean {
   return IN_PROGRESS.includes(status);
 }
+
+// ---------------------------------------------------------------------------
+// Concept extraction and storyboarding (stage 3)
+// ---------------------------------------------------------------------------
+
+export type ConceptType =
+  | 'EQUATION'
+  | 'ARCHITECTURE'
+  | 'ALGORITHM'
+  | 'RESULT'
+  | 'INTUITION'
+  | 'OTHER';
+
+export interface StoryboardBeat {
+  order: number;
+  seconds: number;
+  visual: string;
+  narration: string;
+  latex: string | null;
+}
+
+export interface Storyboard {
+  title: string;
+  summary: string;
+  totalSeconds: number;
+  beats: StoryboardBeat[];
+}
+
+/**
+ * When every generation attempt was rejected, the backend stores the validator's
+ * complaints in the same column instead of a storyboard.
+ */
+export interface StoryboardRejection {
+  problems: string[];
+}
+
+export interface ConceptView {
+  id: string;
+  sectionId: string;
+  ordinal: number;
+  title: string;
+  description: string | null;
+  conceptType: ConceptType;
+  animate: boolean;
+  storyboard: Storyboard | StoryboardRejection | null;
+  narration: string | null;
+}
+
+export interface SectionAnalysisResult {
+  sectionId: string;
+  conceptsFound: number;
+  storyboardsBuilt: number;
+  elapsedMs: number;
+  concepts: ConceptView[];
+}
+
+export function isRejection(
+  value: Storyboard | StoryboardRejection | null,
+): value is StoryboardRejection {
+  return value !== null && 'problems' in value;
+}
+
+export function isStoryboard(
+  value: Storyboard | StoryboardRejection | null,
+): value is Storyboard {
+  return value !== null && 'beats' in value;
+}

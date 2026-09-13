@@ -3,7 +3,16 @@ import { Injectable, inject } from '@angular/core';
 import { Observable, throwError } from 'rxjs';
 import { catchError } from 'rxjs/operators';
 
-import { ApiError, PaperDetail, PaperSummary, SectionView, SystemHealth, UploadResponse } from './api.models';
+import {
+  ApiError,
+  ConceptView,
+  PaperDetail,
+  PaperSummary,
+  SectionAnalysisResult,
+  SectionView,
+  SystemHealth,
+  UploadResponse,
+} from './api.models';
 
 /**
  * Single entry point for backend calls. The base path is relative so the same
@@ -48,6 +57,42 @@ export class ApiService {
 
   pdfUrl(id: string): string {
     return `${this.base}/papers/${id}/file`;
+  }
+
+  // --- concept extraction and storyboarding ---------------------------------
+
+  /**
+   * Analyse one section and wait for the result.
+   *
+   * Slow by nature — several model calls — so callers should show progress
+   * rather than assuming this returns quickly.
+   */
+  analyzeSection(paperId: string, sectionId: string, storyboard = true): Observable<SectionAnalysisResult> {
+    return this.http
+      .post<SectionAnalysisResult>(
+        `${this.base}/papers/${paperId}/sections/${sectionId}/analyze?storyboard=${storyboard}`,
+        {},
+      )
+      .pipe(catchError(toMessage));
+  }
+
+  getSectionConcepts(paperId: string, sectionId: string): Observable<ConceptView[]> {
+    return this.http
+      .get<ConceptView[]>(`${this.base}/papers/${paperId}/sections/${sectionId}/concepts`)
+      .pipe(catchError(toMessage));
+  }
+
+  getConcepts(paperId: string): Observable<ConceptView[]> {
+    return this.http
+      .get<ConceptView[]>(`${this.base}/papers/${paperId}/concepts`)
+      .pipe(catchError(toMessage));
+  }
+
+  /** Whole-paper analysis. Returns immediately; poll the paper for status. */
+  analyzePaper(paperId: string, storyboard = true): Observable<unknown> {
+    return this.http
+      .post(`${this.base}/papers/${paperId}/analyze?storyboard=${storyboard}`, {})
+      .pipe(catchError(toMessage));
   }
 }
 

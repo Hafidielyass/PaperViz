@@ -1,14 +1,23 @@
-import { ChangeDetectionStrategy, Component, computed, inject, input, signal } from '@angular/core';
+import {
+  ChangeDetectionStrategy,
+  Component,
+  afterNextRender,
+  computed,
+  inject,
+  input,
+  signal,
+} from '@angular/core';
 import { RouterLink } from '@angular/router';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { switchMap, timer } from 'rxjs';
 
 import { ApiService } from '../../core/api.service';
-import { PaperDetail, isInProgress } from '../../core/api.models';
+import { ConceptView, PaperDetail, isInProgress } from '../../core/api.models';
+import { ConceptCard } from './concept-card';
 
 @Component({
   selector: 'pv-paper',
-  imports: [RouterLink],
+  imports: [RouterLink, ConceptCard],
   changeDetection: ChangeDetectionStrategy.OnPush,
   styles: [
     `
@@ -114,6 +123,45 @@ import { PaperDetail, isInProgress } from '../../core/api.models';
                     <pre class="latex mt-2 overflow-x-auto rounded p-3" style="background: rgba(127,127,127,0.08)">{{ s.latex }}</pre>
                   </details>
                 }
+
+                <!-- Concept extraction and storyboarding for this one section -->
+                <div class="mt-4 border-t pt-3" style="border-color: var(--pv-border)">
+                  <div class="flex flex-wrap items-center gap-3">
+                    <button
+                      type="button"
+                      class="rounded px-2.5 py-1 text-xs font-medium"
+                      style="background: rgba(99,102,241,0.15); color: #6366f1"
+                      [disabled]="analysing() !== null"
+                      (click)="analyse(s.id)"
+                    >
+                      {{ analysing() === s.id ? 'Analysing…' : 'Find concepts' }}
+                    </button>
+
+                    @if (analysing() === s.id) {
+                      <span class="text-xs" style="color: var(--pv-muted)">
+                        Several model calls — usually 20&ndash;90 seconds.
+                      </span>
+                    } @else if (timings()[s.id]; as ms) {
+                      <span class="text-xs" style="color: var(--pv-muted)">
+                        {{ (ms / 1000).toFixed(0) }}s
+                      </span>
+                    }
+                  </div>
+
+                  @if (conceptsFor(s.id); as list) {
+                    @if (list.length > 0) {
+                      <div class="mt-3 space-y-3">
+                        @for (c of list; track c.id) {
+                          <pv-concept-card [concept]="c" />
+                        }
+                      </div>
+                    } @else if (analysed()[s.id]) {
+                      <p class="mt-2 text-xs" style="color: var(--pv-muted)">
+                        Nothing here worth animating — which is the right answer for most sections.
+                      </p>
+                    }
+                  }
+                </div>
               </li>
             }
           </ol>
@@ -136,6 +184,12 @@ export class PaperPage {
 
   readonly detail = signal<PaperDetail | null>(null);
   readonly error = signal<string | null>(null);
+
+  /** Section id currently being analysed, or null. One at a time — the model is the bottleneck. */
+  readonly analysing = signal<string | null>(null);
+  readonly concepts = signal<Record<string, ConceptView[]>>({});
+  readonly analysed = signal<Record<string, boolean>>({});
+  readonly timings = signal<Record<string, number>>({});
 
   readonly busy = computed(() => {
     const d = this.detail();
@@ -169,6 +223,56 @@ export class PaperPage {
         },
         error: (e: Error) => this.error.set(e.message),
       });
+
+    // Concepts already in the database cost minutes of model time to produce;
+    // show them on load rather than making the user re-run analysis after a refresh.
+    afterNextRender(() => this.loadExistingConcepts());
+  }
+
+  private loadExistingConcepts(): void {
+    this.api.getConcepts(this.id()).subscribe({
+      next: (all) => {
+        const bySection: Record<string, ConceptView[]> = {};
+        for (const concept of all) {
+          (bySection[concept.sectionId] ??= []).push(concept);
+        }
+        this.concepts.set(bySection);
+        this.analysed.update((map) => {
+          const next = { ...map };
+          for (const sectionId of Object.keys(bySection)) {
+            next[sectionId] = true;
+          }
+          return next;
+        });
+      },
+      // A failure here is not worth an error banner — the button still works.
+      error: () => undefined,
+    });
+  }
+
+  conceptsFor(sectionId: string): ConceptView[] | null {
+    return this.concepts()[sectionId] ?? null;
+  }
+
+  analyse(sectionId: string): void {
+    if (this.analysing() !== null) {
+      return;
+    }
+    this.analysing.set(sectionId);
+    this.error.set(null);
+
+    this.api.analyzeSection(this.id(), sectionId).subscribe({
+      next: (result) => {
+        this.concepts.update((map) => ({ ...map, [sectionId]: result.concepts }));
+        this.analysed.update((map) => ({ ...map, [sectionId]: true }));
+        this.timings.update((map) => ({ ...map, [sectionId]: result.elapsedMs }));
+        this.analysing.set(null);
+      },
+      error: (e: Error) => {
+        this.error.set(e.message);
+        this.analysing.set(null);
+      },
+    });
   }
 
   pdfUrl(): string {
