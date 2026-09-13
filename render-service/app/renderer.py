@@ -19,6 +19,8 @@ import time
 from dataclasses import dataclass
 from pathlib import Path
 
+from app import narration
+
 log = logging.getLogger(__name__)
 
 MEDIA_ROOT = Path(os.getenv("MEDIA_ROOT", "/data/media"))
@@ -58,6 +60,8 @@ class RenderResult:
     elapsed_seconds: float
     log_tail: str
     error: str | None = None
+    narrated: bool = False
+    spoken_beats: int = 0
 
 
 def expected_duration(storyboard: dict) -> float:
@@ -69,13 +73,28 @@ def expected_duration(storyboard: dict) -> float:
     return total
 
 
-def render(storyboard: dict, render_id: str, quality: str = "medium") -> RenderResult:
-    """Renders one storyboard to MP4 under the shared media volume."""
+def render(storyboard: dict, render_id: str, quality: str = "medium",
+           narrate: bool = True) -> RenderResult:
+    """Renders one storyboard to MP4 under the shared media volume.
+
+    When narration is on, the audio is synthesised and measured *before* the
+    video is drawn, and the beat durations come from those measurements. That
+    ordering is what keeps picture and voice in step.
+    """
     started = time.monotonic()
     RENDER_DIR.mkdir(parents=True, exist_ok=True)
 
     with tempfile.TemporaryDirectory(prefix="pvrender-") as workdir:
         work = Path(workdir)
+
+        plan = None
+        if narrate:
+            plan = narration.build(storyboard, work)
+            if plan.any_audio:
+                storyboard = narration.retime(storyboard, plan)
+            else:
+                plan = None
+
         storyboard_path = work / "storyboard.json"
         storyboard_path.write_text(json.dumps(storyboard), encoding="utf-8")
 
@@ -138,17 +157,31 @@ def render(storyboard: dict, render_id: str, quality: str = "medium") -> RenderR
                 error="Manim reported success but produced no video file.",
             )
 
+        narrated = False
+        if plan is not None:
+            track = narration.build_audio_track(plan, storyboard, work)
+            if track is not None:
+                muxed = work / "narrated.mp4"
+                if narration.mux(produced, track, muxed):
+                    produced = muxed
+                    narrated = True
+                else:
+                    log.warning("%s rendered but narration could not be muxed", render_id)
+
         target = RENDER_DIR / f"{render_id}.mp4"
         shutil.move(str(produced), target)
 
         elapsed = time.monotonic() - started
-        log.info("rendered %s in %.1fs -> %s", render_id, elapsed, target)
+        log.info("rendered %s in %.1fs (narrated=%s) -> %s",
+                 render_id, elapsed, narrated, target)
         return RenderResult(
             ok=True,
             video_path=str(target.relative_to(MEDIA_ROOT)).replace("\\", "/"),
             duration_seconds=_probe_duration(target),
             elapsed_seconds=elapsed,
             log_tail=tail,
+            narrated=narrated,
+            spoken_beats=plan.spoken_beats if plan else 0,
         )
 
 

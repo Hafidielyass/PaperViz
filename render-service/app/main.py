@@ -15,7 +15,7 @@ from typing import Any
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel, Field
 
-from app import renderer
+from app import narration, renderer
 
 logging.basicConfig(level=os.getenv("LOG_LEVEL", "info").upper())
 log = logging.getLogger(__name__)
@@ -50,6 +50,8 @@ class RenderRequest(BaseModel):
     render_id: str = Field(..., min_length=1, max_length=100)
     storyboard: dict[str, Any]
     quality: str = Field(default="medium", pattern="^(low|medium|high)$")
+    """Narration is on by default; a voice failure degrades to a silent video."""
+    narrate: bool = True
 
 
 class RenderResponse(BaseModel):
@@ -61,6 +63,8 @@ class RenderResponse(BaseModel):
     elapsed_seconds: float
     error: str | None = None
     log_tail: str | None = None
+    narrated: bool = False
+    spoken_beats: int = 0
 
 
 def _media_writable() -> bool:
@@ -83,6 +87,7 @@ def _capabilities() -> dict[str, bool]:
         "dvisvgm": shutil.which("dvisvgm") is not None,
         # stage 5
         "piper": shutil.which("piper") is not None,
+        "voice_model": narration.voice_available(),
     }
 
 
@@ -110,7 +115,8 @@ def render(request: RenderRequest) -> RenderResponse:
     if not all(c.isalnum() or c in "-_" for c in request.render_id):
         raise HTTPException(status_code=422, detail="render_id must be alphanumeric, - or _.")
 
-    result = renderer.render(request.storyboard, request.render_id, request.quality)
+    result = renderer.render(
+        request.storyboard, request.render_id, request.quality, request.narrate)
 
     return RenderResponse(
         ok=result.ok,
@@ -121,4 +127,6 @@ def render(request: RenderRequest) -> RenderResponse:
         elapsed_seconds=round(result.elapsed_seconds, 2),
         error=result.error,
         log_tail=result.log_tail[-1500:] if result.log_tail else None,
+        narrated=result.narrated,
+        spoken_beats=result.spoken_beats,
     )

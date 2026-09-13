@@ -1,6 +1,11 @@
-# Web layer only. Manim, numpy, pycairo, ffmpeg and LaTeX all come from the
-# manimcommunity/manim base image, so nothing here may pull manim in again.
+# Web layer plus text-to-speech. Manim, numpy, pycairo, ffmpeg and LaTeX all
+# come from the manimcommunity/manim base image, so nothing here may pull manim
+# in again.
 fastapi==0.115.6
 uvicorn[standard]==0.34.0
 pydantic==2.10.4
 python-multipart==0.0.20
+
+# Piper: CPU-only neural TTS. Chosen over a cloud API so a render never needs
+# network or a key, and so it never contends with Ollama for the GPU.
+piper-tts==1.8.0

@@ -1,3 +1,4 @@
+# syntax=docker/dockerfile:1
 # Manim rendering service.
 #
 # Built on the official Manim image rather than installing TeX ourselves. That
@@ -20,7 +21,30 @@ ENV PYTHONUNBUFFERED=1 \
 
 # Only the web layer; manim and its dependencies come from the base image.
 COPY requirements-service.txt .
-RUN pip install --no-cache-dir -r requirements-service.txt
+RUN --mount=type=cache,target=/root/.cache/pip \
+    pip install -r requirements-service.txt
+
+# Bake the voice into the image so a render never needs the network.
+# lessac-medium is the best quality/size trade at ~63 MB; the .json beside it
+# carries the phoneme config and is not optional.
+ARG PIPER_VOICE=en_US-lessac-medium
+ARG PIPER_VOICE_PATH=en/en_US/lessac/medium
+ENV PIPER_VOICE_DIR=/opt/piper-voices
+# Downloaded with Python rather than curl: the base image ships neither curl nor
+# wget, and Python is the one thing it is guaranteed to have.
+RUN mkdir -p "$PIPER_VOICE_DIR" && python - <<'PYEOF'
+import os, urllib.request
+voice = os.environ["PIPER_VOICE"]
+path = os.environ["PIPER_VOICE_PATH"]
+out = os.environ["PIPER_VOICE_DIR"]
+base = f"https://huggingface.co/rhasspy/piper-voices/resolve/main/{path}/{voice}"
+for suffix in (".onnx", ".onnx.json"):
+    target = os.path.join(out, voice + suffix)
+    print("fetching", base + suffix, flush=True)
+    urllib.request.urlretrieve(base + suffix, target)
+    print("  ->", target, os.path.getsize(target), "bytes", flush=True)
+PYEOF
+ENV PIPER_VOICE=$PIPER_VOICE
 
 COPY app ./app
 
