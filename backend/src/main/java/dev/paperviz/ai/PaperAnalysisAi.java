@@ -7,7 +7,9 @@ import dev.paperviz.domain.model.Section;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.ai.chat.client.ChatClient;
+import org.springframework.ai.chat.prompt.PromptTemplate;
 import org.springframework.ai.ollama.api.OllamaOptions;
+import org.springframework.ai.template.st.StTemplateRenderer;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.io.Resource;
 import org.springframework.stereotype.Service;
@@ -52,6 +54,20 @@ public class PaperAnalysisAi {
         this.storyboardPrompt = storyboardPrompt;
     }
 
+    /**
+     * Prompt templates use &lt;angle&gt; placeholders, not braces.
+     *
+     * The prompts contain literal JSON examples showing the model what a chart
+     * or equation payload looks like, and the default StringTemplate renderer
+     * reads every brace in those examples as a placeholder — which fails the
+     * whole render with "The template string is not valid" before the model is
+     * ever called. Angle brackets do not otherwise appear in these prompts.
+     */
+    private static final StTemplateRenderer TEMPLATE_RENDERER = StTemplateRenderer.builder()
+            .startDelimiterToken('<')
+            .endDelimiterToken('>')
+            .build();
+
     /** Options shared by every call: JSON mode, low temperature, room for a long section. */
     private OllamaOptions options() {
         return OllamaOptions.builder()
@@ -69,10 +85,11 @@ public class PaperAnalysisAi {
                 "sectionText", truncate(section.getRawText()),
                 "formulas", nullSafe(section.getLatex(), "(none)"));
 
+        String rendered = render(conceptPrompt, params);
         ConceptExtraction result = callWithRetry(
                 "concept extraction for section " + section.getOrdinal(),
                 () -> chat.prompt()
-                        .user(u -> u.text(conceptPrompt).params(params))
+                        .user(rendered)
                         .options(options())
                         .call()
                         .entity(ConceptExtraction.class));
@@ -110,16 +127,20 @@ public class PaperAnalysisAi {
         String correction = "";
         StoryboardValidator.Result lastCheck = null;
 
+        String rendered = render(storyboardPrompt, base);
+
         for (int attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
-            String suffix = correction;
             Storyboard sb;
             try {
-                sb = chat.prompt()
-                        .user(u -> u.text(storyboardPrompt).params(base))
-                        .system(suffix.isBlank() ? "" : suffix)
-                        .options(options())
-                        .call()
-                        .entity(Storyboard.class);
+                // A blank system message is rejected outright ("text cannot be
+                // null or empty"), so only attach one when there is a correction.
+                ChatClient.ChatClientRequestSpec request = chat.prompt()
+                        .user(rendered)
+                        .options(options());
+                if (!correction.isBlank()) {
+                    request = request.system(correction);
+                }
+                sb = request.call().entity(Storyboard.class);
             } catch (Exception e) {
                 log.warn("storyboard attempt {}/{} for '{}' failed to parse: {}",
                         attempt, MAX_ATTEMPTS, concept.title(), e.getMessage());
@@ -174,6 +195,15 @@ public class PaperAnalysisAi {
         }
         log.error("{} gave up after {} attempts", what, MAX_ATTEMPTS, last);
         return null;
+    }
+
+    /** Renders a prompt resource with the angle-bracket delimiters. */
+    private String render(Resource template, Map<String, Object> params) {
+        return PromptTemplate.builder()
+                .resource(template)
+                .renderer(TEMPLATE_RENDERER)
+                .build()
+                .render(params);
     }
 
     private String truncate(String text) {

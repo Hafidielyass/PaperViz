@@ -44,10 +44,26 @@ public final class AiModels {
     public record StoryboardBeat(
             Integer order,
             Integer seconds,
+            /** Prose description of the shot — always present, and what the layout gate reads. */
             String visual,
             String narration,
-            String latex
+            /** Convenience for a bare equation beat; superseded by {@code scene} when set. */
+            String latex,
+            /** Typed payload the renderer builds directly. Null falls back to FREEFORM. */
+            SceneSpec.Visual scene
     ) {
+        /** The effective scene, promoting a bare latex field to a typed equation. */
+        public SceneSpec.Visual effectiveScene() {
+            if (scene != null && scene.kind() != null) {
+                return scene;
+            }
+            if (latex != null && !latex.isBlank()) {
+                return new SceneSpec.Visual(
+                        SceneSpec.VisualKind.EQUATION, null, latex, null, null, null);
+            }
+            return new SceneSpec.Visual(
+                    SceneSpec.VisualKind.FREEFORM, null, null, null, null, visual);
+        }
     }
 
     @JsonIgnoreProperties(ignoreUnknown = true)

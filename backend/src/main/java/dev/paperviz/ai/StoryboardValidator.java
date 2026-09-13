@@ -82,9 +82,12 @@ public class StoryboardValidator {
                         .formatted(position, wordCount(beat.narration()),
                                 speakableWords(beat.seconds()), beat.seconds()));
             }
+
+            problems.addAll(validateScene(position, beat.effectiveScene()));
         }
 
         problems.addAll(findRepeatedVisuals(beats));
+        problems.addAll(checkItIsAnAnimation(beats));
 
         if (summed < MIN_TOTAL_SECONDS || summed > MAX_TOTAL_SECONDS) {
             problems.add("Total runtime %ds is outside %d-%ds."
@@ -139,7 +142,8 @@ public class StoryboardValidator {
                 changed = true;
             }
 
-            repaired.add(new StoryboardBeat(order, seconds, beat.visual(), beat.narration(), beat.latex()));
+            repaired.add(new StoryboardBeat(
+                    order, seconds, beat.visual(), beat.narration(), beat.latex(), beat.scene()));
         }
 
         int total = repaired.stream().mapToInt(StoryboardBeat::seconds).sum();
@@ -150,6 +154,207 @@ public class StoryboardValidator {
     }
 
     /**
+     * Checks the typed payload a beat will actually be rendered from.
+     *
+     * These are the failures that produce a chart nobody can read rather than a
+     * crash, so they have to be caught here — the renderer will happily draw a
+     * series with the wrong number of points.
+     */
+    private List<String> validateScene(int position, SceneSpec.Visual scene) {
+        List<String> problems = new ArrayList<>();
+        if (scene == null || scene.kind() == null) {
+            return problems;
+        }
+
+        switch (scene.kind()) {
+            case EQUATION -> {
+                String latex = scene.latex();
+                if (latex == null || latex.isBlank()) {
+                    problems.add("Beat %d is an EQUATION beat with no latex.".formatted(position));
+                } else {
+                    problems.addAll(validateLatex(position, latex));
+                }
+            }
+            case CHART -> problems.addAll(validateChart(position, scene.chart()));
+            case DIAGRAM -> problems.addAll(validateDiagram(position, scene.diagram()));
+            case TEXT -> {
+                if (scene.text() == null || scene.text().isBlank()) {
+                    problems.add("Beat %d is a TEXT beat with no text.".formatted(position));
+                } else if (wordCount(scene.text()) > 25) {
+                    problems.add("Beat %d puts %d words on screen; keep on-screen text under 25."
+                            .formatted(position, wordCount(scene.text())));
+                }
+            }
+            case FREEFORM -> {
+                if (scene.description() == null || scene.description().isBlank()) {
+                    problems.add("Beat %d has no visual to render.".formatted(position));
+                }
+            }
+        }
+        return problems;
+    }
+
+    /**
+     * Cheap structural checks on LaTeX. A full parse belongs to the render
+     * stage, where a real TeX run either compiles or does not — but unbalanced
+     * braces are worth rejecting before we pay for that.
+     */
+    private List<String> validateLatex(int position, String latex) {
+        List<String> problems = new ArrayList<>();
+
+        int depth = 0;
+        for (int i = 0; i < latex.length(); i++) {
+            char c = latex.charAt(i);
+            boolean escaped = i > 0 && latex.charAt(i - 1) == '\\';
+            if (escaped) {
+                continue;
+            }
+            if (c == '{') {
+                depth++;
+            } else if (c == '}') {
+                depth--;
+                if (depth < 0) {
+                    break;
+                }
+            }
+        }
+        if (depth != 0) {
+            problems.add("Beat %d latex has unbalanced braces.".formatted(position));
+        }
+
+        // Delimiters are the renderer's job; leaving them in double-wraps the math.
+        String trimmed = latex.trim();
+        if (trimmed.startsWith("$") || trimmed.startsWith("\\[") || trimmed.startsWith("\\(")) {
+            problems.add(("Beat %d latex includes math delimiters. Give the formula body only, "
+                    + "with no $ or \\[ wrapping.").formatted(position));
+        }
+        return problems;
+    }
+
+    private List<String> validateChart(int position, SceneSpec.Chart chart) {
+        List<String> problems = new ArrayList<>();
+        if (chart == null) {
+            problems.add("Beat %d is a CHART beat with no chart data.".formatted(position));
+            return problems;
+        }
+        if (chart.kind() == null) {
+            problems.add("Beat %d chart has no kind (BAR, LINE or SCATTER).".formatted(position));
+        }
+
+        List<String> categories = chart.safeCategories();
+        List<SceneSpec.Series> series = chart.safeSeries();
+
+        if (categories.isEmpty()) {
+            problems.add("Beat %d chart has no categories.".formatted(position));
+        } else if (categories.size() > 12) {
+            problems.add("Beat %d chart has %d categories; keep it under 12 so labels stay legible."
+                    .formatted(position, categories.size()));
+        }
+        if (series.isEmpty()) {
+            problems.add("Beat %d chart has no series.".formatted(position));
+        } else if (series.size() > 4) {
+            problems.add("Beat %d chart has %d series; keep it to 4 or fewer."
+                    .formatted(position, series.size()));
+        }
+
+        // Series named after the categories means the two axes have been mixed
+        // up: the thing being compared has been used as both the x-axis and the
+        // legend. Lengths still line up, so nothing else here would catch it.
+        Set<String> categoryKeys = categories.stream()
+                .filter(java.util.Objects::nonNull)
+                .map(c -> c.toLowerCase(Locale.ROOT).trim())
+                .collect(java.util.stream.Collectors.toCollection(LinkedHashSet::new));
+        long clashing = series.stream()
+                .map(SceneSpec.Series::name)
+                .filter(java.util.Objects::nonNull)
+                .map(n -> n.toLowerCase(Locale.ROOT).trim())
+                .filter(categoryKeys::contains)
+                .count();
+        if (clashing > 0 && !categoryKeys.isEmpty()) {
+            problems.add(("Beat %d chart uses the same labels for its categories and its series, "
+                    + "so the axes are mixed up. Categories are what sits along the x-axis; "
+                    + "series are the quantities being compared across them.")
+                    .formatted(position));
+        }
+
+        for (SceneSpec.Series s : series) {
+            String name = s.name() == null ? "(unnamed)" : s.name();
+            if (s.safeValues().isEmpty()) {
+                problems.add("Beat %d chart series '%s' has no values.".formatted(position, name));
+            } else if (!categories.isEmpty() && s.safeValues().size() != categories.size()) {
+                problems.add(("Beat %d chart series '%s' has %d values but there are %d "
+                        + "categories; they must match one to one.")
+                        .formatted(position, name, s.safeValues().size(), categories.size()));
+            }
+            if (s.safeValues().stream().anyMatch(v -> v == null || v.isNaN() || v.isInfinite())) {
+                problems.add("Beat %d chart series '%s' contains a value that is not a number."
+                        .formatted(position, name));
+            }
+        }
+        return problems;
+    }
+
+    private List<String> validateDiagram(int position, SceneSpec.Diagram diagram) {
+        List<String> problems = new ArrayList<>();
+        if (diagram == null) {
+            problems.add("Beat %d is a DIAGRAM beat with no diagram.".formatted(position));
+            return problems;
+        }
+
+        List<SceneSpec.Node> nodes = diagram.safeNodes();
+        if (nodes.isEmpty()) {
+            problems.add("Beat %d diagram has no nodes.".formatted(position));
+            return problems;
+        }
+        if (nodes.size() > 8) {
+            problems.add("Beat %d diagram has %d boxes; more than 8 will not fit the frame."
+                    .formatted(position, nodes.size()));
+        }
+
+        Set<String> ids = new LinkedHashSet<>();
+        for (SceneSpec.Node node : nodes) {
+            if (node.id() == null || node.id().isBlank()) {
+                problems.add("Beat %d diagram has a node with no id.".formatted(position));
+            } else if (!ids.add(node.id())) {
+                problems.add("Beat %d diagram reuses node id '%s'.".formatted(position, node.id()));
+            }
+        }
+        for (SceneSpec.Edge edge : diagram.safeEdges()) {
+            if (edge.from() == null || !ids.contains(edge.from())) {
+                problems.add("Beat %d diagram has an arrow from unknown node '%s'."
+                        .formatted(position, edge.from()));
+            }
+            if (edge.to() == null || !ids.contains(edge.to())) {
+                problems.add("Beat %d diagram has an arrow to unknown node '%s'."
+                        .formatted(position, edge.to()));
+            }
+        }
+        return problems;
+    }
+
+    /**
+     * A storyboard made entirely of text captions is a slideshow, not an
+     * animation — and the reader already has the prose next to the video, so
+     * captions add nothing. At least one beat has to show a real visual.
+     */
+    private List<String> checkItIsAnAnimation(List<StoryboardBeat> beats) {
+        if (beats.isEmpty()) {
+            return List.of();
+        }
+        boolean anyVisual = beats.stream()
+                .map(StoryboardBeat::effectiveScene)
+                .anyMatch(scene -> scene.kind() == SceneSpec.VisualKind.EQUATION
+                        || scene.kind() == SceneSpec.VisualKind.CHART
+                        || scene.kind() == SceneSpec.VisualKind.DIAGRAM
+                        || scene.kind() == SceneSpec.VisualKind.FREEFORM);
+        if (anyVisual) {
+            return List.of();
+        }
+        return List.of("Every beat is a text caption, which is a slideshow rather than an "
+                + "animation. At least one beat must be an EQUATION, CHART or DIAGRAM.");
+    }
+
+    /**
      * Beats that describe the same picture mean nothing moves. The model tends
      * to do this by restating the previous beat's scene verbatim.
      */
@@ -157,8 +362,23 @@ public class StoryboardValidator {
         List<String> problems = new ArrayList<>();
         for (int i = 0; i < beats.size(); i++) {
             for (int j = i + 1; j < beats.size(); j++) {
-                String a = beats.get(i).visual();
-                String b = beats.get(j).visual();
+                StoryboardBeat first = beats.get(i);
+                StoryboardBeat second = beats.get(j);
+
+                // An identical typed payload renders as an identical frame no
+                // matter how differently the prose describes it — a chart drawn
+                // three times from the same numbers is three still images.
+                SceneSpec.Visual sceneA = first.effectiveScene();
+                SceneSpec.Visual sceneB = second.effectiveScene();
+                if (sceneA.kind() != SceneSpec.VisualKind.FREEFORM && sceneA.equals(sceneB)) {
+                    problems.add(("Beats %d and %d render exactly the same %s, so nothing would "
+                            + "change on screen. Either vary what is shown or merge them.")
+                            .formatted(i + 1, j + 1, sceneA.kind()));
+                    continue;
+                }
+
+                String a = first.visual();
+                String b = second.visual();
                 if (a == null || b == null || a.isBlank() || b.isBlank()) {
                     continue;
                 }

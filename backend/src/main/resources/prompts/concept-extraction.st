@@ -18,16 +18,16 @@ Animate something only when motion adds understanding:
 Do NOT animate: definitions of notation, dataset descriptions, hyperparameter
 lists, related-work summaries, or anything whose whole content is a citation.
 
-PAPER TITLE: {paperTitle}
+PAPER TITLE: <paperTitle>
 
-SECTION HEADING: {heading}
-SECTION TYPE: {sectionType}
+SECTION HEADING: <heading>
+SECTION TYPE: <sectionType>
 
 SECTION TEXT:
-{sectionText}
+<sectionText>
 
 FORMULAS FOUND IN THIS SECTION:
-{formulas}
+<formulas>
 
 For each concept worth animating, give:
   title        a short specific name, 2-6 words, drawn from this section
