@@ -21,9 +21,28 @@ class StoryboardValidatorTest {
         return "word ".repeat(n).trim();
     }
 
+    /**
+     * Wraps the beats a test cares about, padding to the validator's minimum
+     * beat count and runtime with visually distinct filler so a test about one
+     * rule is not also tripping the length floor.
+     */
     private static Storyboard board(List<StoryboardBeat> beats) {
-        int total = beats.stream().mapToInt(StoryboardBeat::seconds).sum();
-        return new Storyboard("A Title", "A summary", total, beats);
+        List<StoryboardBeat> all = new java.util.ArrayList<>(beats);
+        String[] fillers = {
+            "A blue square drifts to the upper left",
+            "A green triangle rotates once about its centre",
+            "A dotted line sweeps from the baseline upward",
+            "Two circles orbit and then settle side by side",
+            "A grid fades up behind everything already on screen",
+            "A single dot travels the width of the frame",
+        };
+        int f = 0;
+        while (all.size() < 4 || all.stream().mapToInt(StoryboardBeat::seconds).sum() < 35) {
+            all.add(beat(all.size() + 1, 10, fillers[f % fillers.length], words(20)));
+            f++;
+        }
+        int total = all.stream().mapToInt(StoryboardBeat::seconds).sum();
+        return new Storyboard("A Title", "A summary", total, all);
     }
 
     @Test
@@ -62,12 +81,14 @@ class StoryboardValidatorTest {
 
     @Test
     void rejectsWhenDeclaredTotalDisagreesWithTheBeats() {
-        Storyboard sb = new Storyboard("T", "S", 99, List.of(
-                beat(1, 6, "A square", words(12)),
-                beat(2, 6, "A circle", words(12))));
+        Storyboard sb = new Storyboard("T", "S", 999, List.of(
+                beat(1, 10, "A square slides in", words(20)),
+                beat(2, 10, "A circle grows beside it", words(20)),
+                beat(3, 10, "An arrow links the two", words(20)),
+                beat(4, 10, "Three bars rise from the baseline", words(20))));
 
         assertThat(validator.validate(sb).describe())
-                .contains("Declared totalSeconds 99 does not match");
+                .contains("Declared totalSeconds 999 does not match");
     }
 
     @Test
@@ -90,7 +111,9 @@ class StoryboardValidatorTest {
     void repairRecomputesTheDeclaredTotal() {
         Storyboard sb = new Storyboard("T", "S", 11, List.of(
                 beat(1, 5, "A square", words(18)),
-                beat(2, 6, "A circle", words(12))));
+                beat(2, 6, "A circle", words(12)),
+                beat(3, 10, "An arrow", words(20)),
+                beat(4, 10, "Three bars", words(20))));
 
         Storyboard repaired = validator.repairTiming(sb);
 
@@ -256,17 +279,25 @@ class StoryboardValidatorTest {
         assertThat(validator.validate(sb).ok()).isTrue();
     }
 
-    /** Regression: a run produced five TEXT beats, which is a slideshow. */
+    /**
+     * Regression: a run produced five TEXT beats, which is a slideshow.
+     *
+     * Built without the padding helper on purpose — its filler beats are
+     * FREEFORM, which would satisfy the very rule under test.
+     */
     @Test
     void rejectsAStoryboardThatIsNothingButTextCaptions() {
-        SceneSpec.Visual text = new SceneSpec.Visual(
-                SceneSpec.VisualKind.TEXT, "Fine-tuning BERT", null, null, null, null);
-
-        Storyboard sb = board(List.of(
-                scened(1, 6, "A caption appears", text),
-                scened(2, 6, "A different caption replaces it",
-                        new SceneSpec.Visual(SceneSpec.VisualKind.TEXT,
-                                "Three epochs over the data", null, null, null, null))));
+        String[] captions = {
+            "Fine-tuning BERT", "Three epochs over the data",
+            "A learning rate of five e minus five", "Batches of thirty-two",
+        };
+        List<StoryboardBeat> beats = new java.util.ArrayList<>();
+        for (int i = 0; i < captions.length; i++) {
+            beats.add(scened(i + 1, 10, "Caption " + (i + 1) + " on screen alone",
+                    new SceneSpec.Visual(SceneSpec.VisualKind.TEXT,
+                            captions[i], null, null, null, null)));
+        }
+        Storyboard sb = new Storyboard("T", "S", 40, beats);
 
         assertThat(validator.validate(sb).describe()).contains("slideshow rather than an animation");
     }

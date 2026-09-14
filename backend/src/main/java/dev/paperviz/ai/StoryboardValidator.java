@@ -22,12 +22,18 @@ import java.util.Set;
 @Component
 public class StoryboardValidator {
 
-    static final int MIN_BEATS = 2;
+    static final int MIN_BEATS = 4;
     static final int MAX_BEATS = 8;
-    static final int MIN_TOTAL_SECONDS = 10;
-    static final int MAX_TOTAL_SECONDS = 60;
-    static final int MIN_BEAT_SECONDS = 2;
-    static final int MAX_BEAT_SECONDS = 15;
+
+    /**
+     * The animation carries the explanation, so it needs room. The floor is
+     * enforced again at render time, where measured narration decides the real
+     * timings and short beats are padded out to reach it.
+     */
+    static final int MIN_TOTAL_SECONDS = 35;
+    static final int MAX_TOTAL_SECONDS = 100;
+    static final int MIN_BEAT_SECONDS = 3;
+    static final int MAX_BEAT_SECONDS = 16;
 
     /** Speaking rate used to check narration fits its beat. */
     static final double WORDS_PER_SECOND = 2.5;

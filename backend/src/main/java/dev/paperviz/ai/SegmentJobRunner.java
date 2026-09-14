@@ -6,6 +6,7 @@ import dev.paperviz.ai.PaperAnalysisAi.StoryboardResult;
 import dev.paperviz.ai.SegmentService.WriteTarget;
 import dev.paperviz.domain.model.Concept;
 import dev.paperviz.domain.model.Section;
+import dev.paperviz.rendering.RenderJobRunner;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.scheduling.annotation.Async;
@@ -35,13 +36,16 @@ public class SegmentJobRunner {
     private final SegmentService segments;
     private final SegmentWriterAi writer;
     private final PaperAnalysisAi analysisAi;
+    private final RenderJobRunner renderJobs;
 
     public SegmentJobRunner(SegmentService segments,
                             SegmentWriterAi writer,
-                            PaperAnalysisAi analysisAi) {
+                            PaperAnalysisAi analysisAi,
+                            RenderJobRunner renderJobs) {
         this.segments = segments;
         this.writer = writer;
         this.analysisAi = analysisAi;
+        this.renderJobs = renderJobs;
     }
 
     @Async("paperVizExecutor")
@@ -115,6 +119,10 @@ public class SegmentJobRunner {
                 if (result.ok()) {
                     segments.attachStoryboard(segmentId, result.storyboard());
                     storyboarded++;
+                    // Queue the video immediately. A part without one is not
+                    // finished, and asking the reader to press a button for
+                    // something the pipeline could have done is busywork.
+                    renderJobs.submitSegment(segmentId, "medium");
                 } else {
                     log.warn("storyboard failed for segment '{}': {}", item.title(), result.problems());
                     segments.markStoryboardFailed(segmentId, result.problems());

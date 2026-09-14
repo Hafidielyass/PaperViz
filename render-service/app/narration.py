@@ -29,7 +29,16 @@ VOICE_NAME = os.getenv("PIPER_VOICE", "en_US-lessac-medium")
 BEAT_PADDING_SECONDS = float(os.getenv("BEAT_PADDING_SECONDS", "0.6"))
 
 # A beat still needs to be watchable even when its narration is one short word.
-MIN_BEAT_SECONDS = 2.5
+MIN_BEAT_SECONDS = 3.5
+
+# Videos should not come out shorter than this. Audio-driven timing is right for
+# sync but tends to produce very short clips, because spoken lines are brief.
+# The shortfall is spread across the beats as extra hold time, which only ever
+# adds silence after a line — so nothing drifts.
+TARGET_MIN_SECONDS = float(os.getenv("TARGET_MIN_SECONDS", "45"))
+
+# Past this, a beat is being padded rather than held.
+MAX_BEAT_SECONDS = 16.0
 
 # Title card: no narration, just a held frame.
 TITLE_CARD_SECONDS = 2.2
@@ -139,6 +148,8 @@ def build(storyboard: dict, workdir: Path) -> NarrationPlan:
         else:
             durations.append(max(clip.seconds + BEAT_PADDING_SECONDS, MIN_BEAT_SECONDS))
 
+    durations = stretch_to_minimum(durations, storyboard)
+
     spoken = sum(1 for c in clips if c is not None)
     total = sum(durations)
     if (storyboard.get("title") or "").strip():
@@ -147,6 +158,34 @@ def build(storyboard: dict, workdir: Path) -> NarrationPlan:
     log.info("narration: %d/%d beats spoken, %.1fs of video", spoken, len(beats), total)
     return NarrationPlan(clips=clips, durations=durations,
                          total_seconds=total, spoken_beats=spoken)
+
+
+def stretch_to_minimum(durations: list[float], storyboard: dict) -> list[float]:
+    """Pads beats out until the video reaches the target length.
+
+    Extra time lands after each spoken line, never before it, so a longer beat
+    means a longer pause to look at the picture rather than any drift between
+    voice and video.
+    """
+    if not durations:
+        return durations
+
+    lead_in = TITLE_CARD_SECONDS if (storyboard.get("title") or "").strip() else 0.0
+    total = sum(durations) + lead_in
+    if total >= TARGET_MIN_SECONDS:
+        return durations
+
+    shortfall = TARGET_MIN_SECONDS - total
+    headroom = [MAX_BEAT_SECONDS - d for d in durations]
+    available = sum(h for h in headroom if h > 0)
+    if available <= 0:
+        return durations
+
+    share = min(1.0, shortfall / available)
+    stretched = [round(d + max(0.0, h) * share, 3) for d, h in zip(durations, headroom)]
+    log.info("stretched %.1fs -> %.1fs to reach the %.0fs floor",
+             total, sum(stretched) + lead_in, TARGET_MIN_SECONDS)
+    return stretched
 
 
 def retime(storyboard: dict, plan: NarrationPlan) -> dict:

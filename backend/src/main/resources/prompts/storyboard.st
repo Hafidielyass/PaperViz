@@ -3,8 +3,9 @@ paper. The animation will be rendered with Manim and narrated aloud.
 
 Constraints that matter, because this becomes real code and real audio:
 
-  - Total length 15 to 45 seconds. Shorter is better.
-  - 3 to 6 beats. Each beat is one visual change the viewer can follow.
+  - Total length 45 to 75 seconds. This is the main way the idea is explained,
+    so give it room.
+  - 5 to 8 beats. Each beat is one visual change the viewer can follow.
   - Everything must fit a 16:9 frame with room to breathe. Do not ask for more
     than about 6 distinct objects on screen at once.
   - Narration is spoken, so write it to be heard: short sentences, no
@@ -58,7 +59,7 @@ Produce a storyboard with:
   totalSeconds      integer, 15 to 45, equal to the sum of the beat durations
   beats             the ordered list, each with:
       order           1-based position
-      seconds         integer, 3 to 12
+      seconds         integer, 5 to 14
       visual          what is on screen and what changes, concretely enough
                       that someone could draw it. Name the objects and where
                       they sit relative to each other.
@@ -98,8 +99,12 @@ directly and always render correctly.
   {"kind": "FREEFORM", "description": "..."}
       Only when nothing above fits. These cost more and are less reliable.
 
+At least one beat must be a CHART, DIAGRAM or EQUATION. A part built only from
+text captions is a slideshow, and the reader already has the prose beside the
+video.
+
 Reach for EQUATION when the paper states a formula, and for CHART when it
-reports numbers worth comparing. Those are the two things that are far clearer
-animated than described.
+reports numbers worth comparing. Where the paper gives no figures, a DIAGRAM of
+the pieces and how data moves between them is almost always available.
 
 The sum of every beat's seconds must equal totalSeconds.
