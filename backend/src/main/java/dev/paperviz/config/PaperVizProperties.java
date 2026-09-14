@@ -18,6 +18,7 @@ public class PaperVizProperties {
 
     private final Service grobid = new Service("http://localhost:8070");
     private final Service render = new Service("http://localhost:8000");
+    private final Unpaywall unpaywall = new Unpaywall();
 
     public String getMediaRoot() {
         return mediaRoot;
@@ -41,6 +42,36 @@ public class PaperVizProperties {
 
     public Service getRender() {
         return render;
+    }
+
+    public Unpaywall getUnpaywall() {
+        return unpaywall;
+    }
+
+    /**
+     * Unpaywall integration. The email is required by Unpaywall's terms, is what
+     * gets us into their polite pool, and doubles as the contact address in the
+     * outbound User-Agent. Uploads never touch any of this.
+     */
+    public static class Unpaywall {
+        private String baseUrl = "https://api.unpaywall.org";
+        private String email = "";
+
+        public String getBaseUrl() {
+            return baseUrl;
+        }
+
+        public void setBaseUrl(String baseUrl) {
+            this.baseUrl = baseUrl;
+        }
+
+        public String getEmail() {
+            return email;
+        }
+
+        public void setEmail(String email) {
+            this.email = email;
+        }
     }
 
     public static class Service {

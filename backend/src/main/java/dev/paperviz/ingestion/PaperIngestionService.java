@@ -48,6 +48,23 @@ public class PaperIngestionService {
      */
     @Transactional
     public IngestResult ingestUpload(byte[] bytes, String originalFilename) {
+        return ingest(bytes, originalFilename, SourceType.UPLOAD, null, null);
+    }
+
+    /**
+     * For the open-access URL route: the bytes have already been fetched and
+     * vetted by {@link OpenAccessService}; here we record where they came from
+     * and why we were allowed to fetch them.
+     *
+     * @return the paper, and whether it already existed (a cache hit)
+     */
+    @Transactional
+    public IngestResult ingestUrl(byte[] bytes, String originalFilename, String sourceUrl, String openAccessProof) {
+        return ingest(bytes, originalFilename, SourceType.OPEN_ACCESS_URL, sourceUrl, openAccessProof);
+    }
+
+    private IngestResult ingest(byte[] bytes, String originalFilename, SourceType sourceType,
+                                String sourceUrl, String openAccessProof) {
         String filename = sanitiseFilename(originalFilename);
         validator.validate(bytes, filename);
 
@@ -57,7 +74,7 @@ public class PaperIngestionService {
         Optional<Paper> existing = papers.findByOwnerIdAndContentSha256(ownerId, sha256);
         if (existing.isPresent()) {
             Paper paper = existing.get();
-            log.info("upload matched existing paper {} by content hash", paper.getId());
+            log.info("download matched existing paper {} by content hash", paper.getId());
             return new IngestResult(paper, true);
         }
 
@@ -65,7 +82,9 @@ public class PaperIngestionService {
 
         Paper paper = new Paper();
         paper.setOwnerId(ownerId);
-        paper.setSourceType(SourceType.UPLOAD);
+        paper.setSourceType(sourceType);
+        paper.setSourceUrl(sourceUrl);
+        paper.setOpenAccessProof(openAccessProof);
         paper.setOriginalFilename(filename);
         paper.setContentSha256(sha256);
         paper.setStoragePath(storagePath);
@@ -74,7 +93,7 @@ public class PaperIngestionService {
         paper.setTitle(stripExtension(filename));
 
         paper = papers.save(paper);
-        log.info("ingested upload {} as paper {} ({} bytes)", filename, paper.getId(), bytes.length);
+        log.info("ingested {} {} as paper {} ({} bytes)", sourceType, filename, paper.getId(), bytes.length);
         return new IngestResult(paper, false);
     }
 

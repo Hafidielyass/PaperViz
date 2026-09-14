@@ -34,6 +34,14 @@ public class PdfValidator {
         }
     }
 
+    /** Magic-byte check only, for paths that make mistakes of their own choosing. */
+    public boolean looksLikePdf(byte[] bytes) {
+        if (bytes == null || bytes.length < PDF_MAGIC.length) {
+            return false;
+        }
+        return startsWithPdfMagic(bytes);
+    }
+
     private boolean startsWithPdfMagic(byte[] bytes) {
         // Some producers emit a few junk bytes before the header, which readers
         // tolerate, so scan a small window rather than requiring offset 0.

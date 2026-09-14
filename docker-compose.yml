@@ -130,6 +130,8 @@ services:
       SPRING_AI_OLLAMA_EMBEDDING_OPTIONS_MODEL: ${OLLAMA_EMBED_MODEL:-nomic-embed-text}
       PAPERVIZ_GROBID_BASE_URL: http://grobid:8070
       PAPERVIZ_RENDER_BASE_URL: http://render-service:8000
+      PAPERVIZ_UNPAYWALL_BASE_URL: https://api.unpaywall.org
+      PAPERVIZ_UNPAYWALL_EMAIL: ${UNPAYWALL_EMAIL:-}
       PAPERVIZ_MEDIA_ROOT: /data/media
     ports:
       - "${BACKEND_PORT:-8080}:8080"

@@ -158,7 +158,7 @@ not a schema migration.
 | 3 | Spring AI + Ollama: concept extraction + storyboard JSON | ✅ done |
 | 4 | Manim microservice: code gen, validation gates, render | ⬜ |
 | 5 | TTS narration synced to video | ⬜ |
-| 6 | Open-access URL path + Unpaywall | ⬜ |
+| 6 | Open-access URL path + Unpaywall | ✅ done |
 | 7 | Caching, job polling, scrollytelling scroll-sync | ⬜ |
 | 8 | Error handling, retry UI, optional auth | ⬜ |
 

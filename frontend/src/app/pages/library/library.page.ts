@@ -6,134 +6,151 @@ import { Subject, switchMap, timer } from 'rxjs';
 
 import { ApiService } from '../../core/api.service';
 import { PaperSummary, isInProgress } from '../../core/api.models';
+import { LogoComponent } from '../../core/brand';
 
 @Component({
-  selector: 'pv-library',
-  imports: [RouterLink, DatePipe],
+  selector: 'el-library',
+  imports: [RouterLink, DatePipe, LogoComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   styles: [
     `
-      .card {
-        border: 1px solid var(--pv-border);
-        background: var(--pv-surface);
+      /* The drop target is the page's one interactive surface, so it gets the
+         only dashed border in the design and nothing else competes with it. */
+      .drop {
+        border: 1px dashed var(--el-border-strong);
+        background: var(--el-surface);
+        transition:
+          border-color 0.15s ease,
+          background 0.15s ease;
       }
-      .dropzone {
-        border: 2px dashed var(--pv-border);
-        transition: border-color 0.15s ease, background 0.15s ease;
+      .drop.active {
+        border-color: var(--el-ink);
+        background: var(--el-surface-2);
       }
-      .dropzone.active {
-        border-color: #10b981;
-        background: rgba(16, 185, 129, 0.06);
+      .tab {
+        font-size: 0.8125rem;
+        padding: 0.3rem 0.75rem;
+        border-radius: 999px;
+        color: var(--el-muted);
+        cursor: pointer;
+      }
+      .tab.on {
+        background: var(--el-surface-2);
+        color: var(--el-ink);
+      }
+      .row {
+        border-bottom: 1px solid var(--el-border);
+      }
+      .row:last-child {
+        border-bottom: 0;
+      }
+      .field {
+        border: 1px solid var(--el-border-strong);
+        border-radius: var(--el-radius);
+        background: #fff;
+        padding: 0.6rem 0.85rem;
+        font-size: 0.9rem;
+        width: 100%;
+      }
+      .field:focus {
+        outline: none;
+        border-color: var(--el-ink);
       }
     `,
   ],
   template: `
-    <section class="mx-auto max-w-3xl px-6 py-12">
-      <header class="mb-8 flex items-baseline justify-between gap-4">
-        <div>
-          <h1 class="text-3xl font-semibold tracking-tight">PaperViz</h1>
-          <p class="mt-1 text-sm" style="color: var(--pv-muted)">
-            Upload a paper you have access to. PaperViz extracts its structure with GROBID.
-          </p>
-        </div>
-        <a routerLink="/health" class="shrink-0 text-xs underline" style="color: var(--pv-muted)">
-          system health
-        </a>
-      </header>
+    <!-- Top bar: the mark, and nothing that competes with it. -->
+    <header class="border-b" style="border-color: var(--el-border)">
+      <div class="mx-auto flex max-w-5xl items-center justify-between px-6 py-4">
+        <el-logo [size]="26" />
+        <a routerLink="/health" class="text-xs" style="color: var(--el-muted)">status</a>
+      </div>
+    </header>
 
-      <!-- Upload -->
-      <div
-        class="dropzone mb-3 rounded-xl p-8 text-center"
-        [class.active]="dragging()"
-        (dragover)="onDragOver($event)"
-        (dragleave)="onDragLeave($event)"
-        (drop)="onDrop($event)"
-      >
-        <p class="text-sm font-medium">Drop a PDF here</p>
-        <p class="mt-1 text-xs" style="color: var(--pv-muted)">or</p>
-        <label
-          class="mt-3 inline-block cursor-pointer rounded-md px-4 py-2 text-sm font-medium"
-          style="background: #10b981; color: #04120c"
-        >
-          Choose a file
-          <input type="file" accept="application/pdf,.pdf" class="hidden" (change)="onPick($event)" />
-        </label>
-        <p class="mt-4 text-xs" style="color: var(--pv-muted)">
-          Your file is processed for your account only. It is never re-hosted or shared.
-          Pasting a link is supported for open-access sources — that arrives in a later stage.
+    <section class="mx-auto max-w-2xl px-6 pt-20 pb-24">
+      <div class="mb-10 text-center">
+        <h1 class="text-[2rem] leading-tight">What would you like explained?</h1>
+        <p class="mt-3 text-sm" style="color: var(--el-muted)">
+          Drop in a paper and ELYRA turns it into a short visual explainer — written,
+          illustrated and narrated.
         </p>
       </div>
 
-      @if (uploading()) {
-        <p class="mb-3 text-sm" style="color: var(--pv-muted)">Uploading {{ uploadingName() }}…</p>
-      }
-      @if (error(); as e) {
-        <div class="mb-3 rounded-lg border border-red-400/60 bg-red-500/10 p-4 text-sm text-red-500">
-          {{ e }}
-        </div>
-      }
-      @if (notice(); as n) {
-        <div
-          class="mb-3 rounded-lg border border-emerald-400/60 bg-emerald-500/10 p-4 text-sm text-emerald-500"
+      <!-- Source picker -->
+      <div class="mb-3 flex justify-center gap-1">
+        <span class="tab" [class.on]="tab() === 'file'" (click)="tab.set('file')">Upload a PDF</span>
+        <span class="tab" [class.on]="tab() === 'url'" (click)="tab.set('url')">Paste a link</span>
+      </div>
+
+      @if (tab() === 'file') {
+        <label
+          class="drop flex cursor-pointer flex-col items-center justify-center rounded-xl px-6 py-14 text-center"
+          [class.active]="dragging()"
+          (dragover)="onDragOver($event)"
+          (dragleave)="onDragLeave($event)"
+          (drop)="onDrop($event)"
         >
-          {{ n }}
+          <input type="file" accept="application/pdf" class="hidden" (change)="onPick($event)" />
+          @if (uploading()) {
+            <p class="text-sm">Uploading {{ uploadingName() }}…</p>
+          } @else {
+            <p class="text-sm">Drop a PDF here, or click to choose one</p>
+            <p class="mt-1.5 text-xs" style="color: var(--el-muted)">
+              Your own copy, processed locally. Nothing is re-hosted.
+            </p>
+          }
+        </label>
+      } @else {
+        <div class="drop rounded-xl px-6 py-10">
+          <input
+            class="field"
+            type="url"
+            placeholder="https://arxiv.org/abs/1706.03762"
+            [value]="linkUrl()"
+            (input)="linkUrl.set($any($event.target).value)"
+            (keydown.enter)="onIngestUrl()"
+          />
+          <div class="mt-3 flex items-center justify-between gap-4">
+            <p class="text-xs" style="color: var(--el-muted)">
+              Open access only — arXiv, bioRxiv, PMC, OpenReview and others.
+            </p>
+            <button type="button" class="el-btn" [disabled]="linking()" (click)="onIngestUrl()">
+              {{ linking() ? 'Fetching…' : 'Explain it' }}
+            </button>
+          </div>
         </div>
+      }
+
+      @if (error(); as e) {
+        <p class="mt-4 rounded-lg px-4 py-3 text-sm"
+           style="background: rgba(180,72,60,0.08); color: var(--el-bad)">{{ e }}</p>
       }
 
       <!-- Library -->
-      <h2 class="mt-10 mb-3 text-sm font-semibold tracking-wide uppercase" style="color: var(--pv-muted)">
-        Your papers
-      </h2>
-
       @if (papers(); as list) {
-        @if (list.length === 0) {
-          <p class="rounded-lg p-6 text-center text-sm card" style="color: var(--pv-muted)">
-            Nothing here yet.
-          </p>
-        } @else {
-          <ul class="space-y-2">
+        @if (list.length > 0) {
+          <h2 class="mt-16 mb-1 text-xs tracking-widest uppercase" style="color: var(--el-muted)">
+            Your papers
+          </h2>
+          <ul class="el-card overflow-hidden rounded-xl">
             @for (p of list; track p.id) {
-              <li class="card rounded-lg p-4">
-                <div class="flex items-start justify-between gap-4">
-                  <a [routerLink]="['/read', p.id]" class="min-w-0 flex-1 hover:underline">
-                    <p class="truncate font-medium">{{ p.title || p.originalFilename || 'Untitled' }}</p>
-                    @if (p.authors) {
-                      <p class="mt-0.5 truncate text-xs" style="color: var(--pv-muted)">{{ p.authors }}</p>
-                    }
-                    <p class="mt-1 text-xs" style="color: var(--pv-muted)">
-                      {{ p.createdAt | date: 'medium' }}
-                      @if (p.sectionCount > 0) {
-                        · {{ p.sectionCount }} sections
-                      }
-                    </p>
-                  </a>
-                  <div class="flex shrink-0 flex-col items-end gap-2">
-                    <span
-                      class="rounded-full px-2 py-0.5 text-xs font-medium"
-                      [style.background]="statusBg(p)"
-                      [style.color]="statusFg(p)"
-                    >
-                      {{ p.status }}
-                    </span>
-                    <button
-                      type="button"
-                      class="text-xs underline"
-                      style="color: var(--pv-muted)"
-                      (click)="remove(p)"
-                    >
-                      delete
-                    </button>
-                  </div>
-                </div>
-                @if (p.statusDetail && p.status === 'FAILED') {
-                  <p class="mt-2 text-xs text-red-500">{{ p.statusDetail }}</p>
-                }
+              <li class="row flex items-center justify-between gap-4 px-5 py-4">
+                <a [routerLink]="['/read', p.id]" class="min-w-0 flex-1">
+                  <p class="truncate text-sm font-medium">
+                    {{ p.title || p.originalFilename || 'Untitled' }}
+                  </p>
+                  <p class="mt-0.5 truncate text-xs" style="color: var(--el-muted)">
+                    {{ p.createdAt | date: 'd MMM, HH:mm' }}
+                    @if (p.sectionCount > 0) { · {{ p.sectionCount }} sections }
+                  </p>
+                </a>
+                <span class="shrink-0 text-xs" [style.color]="statusFg(p)">{{ statusLabel(p) }}</span>
+                <button type="button" class="shrink-0 text-xs" style="color: var(--el-muted)"
+                        (click)="remove(p)">remove</button>
               </li>
             }
           </ul>
         }
-      } @else {
-        <p class="text-sm" style="color: var(--pv-muted)">Loading…</p>
       }
     </section>
   `,
@@ -149,6 +166,9 @@ export class LibraryPage {
   readonly dragging = signal(false);
   readonly uploading = signal(false);
   readonly uploadingName = signal('');
+  readonly tab = signal<'file' | 'url'>('file');
+  readonly linkUrl = signal('');
+  readonly linking = signal(false);
 
   constructor() {
     // Poll while anything is still processing; GROBID takes tens of seconds.
@@ -213,6 +233,29 @@ export class LibraryPage {
     });
   }
 
+  onIngestUrl(): void {
+    const url = this.linkUrl().trim();
+    if (!url) {
+      this.error.set('Paste a link first.');
+      return;
+    }
+    this.error.set(null);
+    this.notice.set(null);
+    this.linking.set(true);
+
+    this.api.ingestUrl(url).subscribe({
+      next: (res) => {
+        this.linking.set(false);
+        this.notice.set(res.message);
+        void this.router.navigate(['/read', res.paperId]);
+      },
+      error: (e: Error) => {
+        this.linking.set(false);
+        this.error.set(e.message);
+      },
+    });
+  }
+
   remove(paper: PaperSummary): void {
     this.api.deletePaper(paper.id).subscribe({
       next: () => this.papers.update((list) => (list ?? []).filter((p) => p.id !== paper.id)),
@@ -220,15 +263,32 @@ export class LibraryPage {
     });
   }
 
-  statusBg(p: PaperSummary): string {
-    if (p.status === 'FAILED') return 'rgba(239, 68, 68, 0.15)';
-    if (isInProgress(p.status)) return 'rgba(245, 158, 11, 0.15)';
-    return 'rgba(16, 185, 129, 0.15)';
+  statusFg(p: PaperSummary): string {
+    if (p.status === 'FAILED') return 'var(--el-bad)';
+    if (isInProgress(p.status)) return 'var(--el-warn)';
+    return 'var(--el-muted)';
   }
 
-  statusFg(p: PaperSummary): string {
-    if (p.status === 'FAILED') return '#ef4444';
-    if (isInProgress(p.status)) return '#f59e0b';
-    return '#10b981';
+  /** Plain words rather than enum names — READY means nothing to a reader. */
+  statusLabel(p: PaperSummary): string {
+    switch (p.status) {
+      case 'FAILED':
+        return 'failed';
+      case 'READY':
+      case 'WRITTEN':
+        return 'ready';
+      case 'UPLOADED':
+      case 'PARSING':
+        return 'reading';
+      case 'PARSED':
+      case 'ANALYZING':
+      case 'ANALYZED':
+      case 'WRITING':
+        return 'writing';
+      case 'RENDERING':
+        return 'rendering';
+      default:
+        return String(p.status).toLowerCase();
+    }
   }
 }

@@ -11,6 +11,7 @@ import dev.paperviz.domain.model.Section;
 import dev.paperviz.domain.repo.PaperRepository;
 import dev.paperviz.domain.repo.SectionRepository;
 import dev.paperviz.ingestion.IngestionException;
+import dev.paperviz.ingestion.OpenAccessService;
 import dev.paperviz.ingestion.PaperIngestionService;
 import dev.paperviz.ingestion.PaperIngestionService.IngestResult;
 import dev.paperviz.ingestion.StorageService;
@@ -47,6 +48,7 @@ public class PaperController {
     private static final Logger log = LoggerFactory.getLogger(PaperController.class);
 
     private final PaperIngestionService ingestion;
+    private final OpenAccessService openAccess;
     private final ParsingJobRunner parsingJobs;
     private final PaperRepository papers;
     private final SectionRepository sections;
@@ -54,12 +56,14 @@ public class PaperController {
     private final PaperVizProperties props;
 
     public PaperController(PaperIngestionService ingestion,
+                           OpenAccessService openAccess,
                            ParsingJobRunner parsingJobs,
                            PaperRepository papers,
                            SectionRepository sections,
                            StorageService storage,
                            PaperVizProperties props) {
         this.ingestion = ingestion;
+        this.openAccess = openAccess;
         this.parsingJobs = parsingJobs;
         this.papers = papers;
         this.sections = sections;
@@ -98,6 +102,34 @@ public class PaperController {
         String message = result.cacheHit() && !needsParsing
                 ? "Already processed — opening the cached version."
                 : "Upload accepted. Extracting structure now.";
+
+        return new UploadResponse(paper.getId(), paper.getStatus().name(), result.cacheHit(), message);
+    }
+
+    /**
+     * Open-access URL path (stage 6). The allowlist and the Unpaywall check live
+     * in {@link OpenAccessService}, not here, so a direct API caller gets the
+     * same rules as the UI.
+     *
+     * Returns after the fetch and the store; GROBID runs in the background the
+     * same way it does for an upload.
+     */
+    @PostMapping(path = "/url")
+    public UploadResponse ingestUrl(@RequestParam("url") String rawUrl) {
+        IngestResult result = openAccess.ingestUrl(rawUrl);
+        Paper paper = result.paper();
+
+        boolean needsParsing = !result.cacheHit()
+                || paper.getStatus() == PaperStatus.UPLOADED
+                || paper.getStatus() == PaperStatus.FAILED;
+
+        if (needsParsing) {
+            parsingJobs.submit(paper.getId());
+        }
+
+        String message = result.cacheHit() && !needsParsing
+                ? "Already processed — opening the cached version."
+                : "Link accepted. Fetching and extracting structure now.";
 
         return new UploadResponse(paper.getId(), paper.getStatus().name(), result.cacheHit(), message);
     }

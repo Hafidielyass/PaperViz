@@ -23,7 +23,7 @@ import { ConceptView, isRejection, isStoryboard } from '../../core/api.models';
   styles: [
     `
       .beat-rail {
-        border-left: 2px solid var(--pv-border);
+        border-left: 2px solid var(--el-border);
       }
       .mono {
         font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
@@ -31,24 +31,24 @@ import { ConceptView, isRejection, isStoryboard } from '../../core/api.models';
     `,
   ],
   template: `
-    <article class="rounded-lg border p-4" [style.border-color]="'var(--pv-border)'">
+    <article class="rounded-lg border p-4" [style.border-color]="'var(--el-border)'">
       <header class="flex flex-wrap items-baseline gap-x-3 gap-y-1">
         <h4 class="font-medium">{{ concept().title }}</h4>
         <span
           class="rounded px-1.5 py-0.5 text-xs"
-          style="background: rgba(127,127,127,0.12); color: var(--pv-muted)"
+          style="background: rgba(127,127,127,0.12); color: var(--el-muted)"
         >
           {{ concept().conceptType }}
         </span>
         @if (board(); as b) {
-          <span class="text-xs" style="color: var(--pv-muted)">
+          <span class="text-xs" style="color: var(--el-muted)">
             {{ b.beats.length }} beats · {{ b.totalSeconds }}s
           </span>
         }
       </header>
 
       @if (concept().description) {
-        <p class="mt-1.5 text-sm" style="color: var(--pv-muted)">{{ concept().description }}</p>
+        <p class="mt-1.5 text-sm" style="color: var(--el-muted)">{{ concept().description }}</p>
       }
 
       @if (rejection(); as r) {
@@ -56,7 +56,7 @@ import { ConceptView, isRejection, isStoryboard } from '../../core/api.models';
           <p class="mb-1 font-medium text-amber-600">
             No storyboard — rejected by the validation gate
           </p>
-          <ul class="list-disc space-y-0.5 pl-4" style="color: var(--pv-muted)">
+          <ul class="list-disc space-y-0.5 pl-4" style="color: var(--el-muted)">
             @for (p of r.problems; track p) {
               <li>{{ p }}</li>
             }
@@ -65,18 +65,18 @@ import { ConceptView, isRejection, isStoryboard } from '../../core/api.models';
       }
 
       @if (board(); as b) {
-        <p class="mt-3 text-sm italic" style="color: var(--pv-muted)">{{ b.summary }}</p>
+        <p class="mt-3 text-sm italic" style="color: var(--el-muted)">{{ b.summary }}</p>
 
         <ol class="beat-rail mt-3 space-y-3 pl-4">
           @for (beat of b.beats; track beat.order) {
             <li>
               <div class="flex items-baseline gap-2">
-                <span class="mono text-xs" style="color: var(--pv-muted)">
+                <span class="mono text-xs" style="color: var(--el-muted)">
                   {{ beat.order }} · {{ beat.seconds }}s
                 </span>
               </div>
               <p class="mt-0.5 text-sm">{{ beat.visual }}</p>
-              <p class="mt-1 text-sm" style="color: var(--pv-muted)">
+              <p class="mt-1 text-sm" style="color: var(--el-muted)">
                 &ldquo;{{ beat.narration }}&rdquo;
               </p>
               @if (beat.latex) {
@@ -90,7 +90,7 @@ import { ConceptView, isRejection, isStoryboard } from '../../core/api.models';
         </ol>
 
         <details class="mt-3">
-          <summary class="cursor-pointer text-xs" style="color: var(--pv-muted)">
+          <summary class="cursor-pointer text-xs" style="color: var(--el-muted)">
             raw storyboard JSON
           </summary>
           <pre
@@ -101,13 +101,13 @@ import { ConceptView, isRejection, isStoryboard } from '../../core/api.models';
       }
 
       @if (!board() && !rejection()) {
-        <p class="mt-2 text-xs" style="color: var(--pv-muted)">
+        <p class="mt-2 text-xs" style="color: var(--el-muted)">
           Concept found, but no storyboard was generated for it.
         </p>
       }
 
       @if (board()) {
-        <div class="mt-4 border-t pt-3" style="border-color: var(--pv-border)">
+        <div class="mt-4 border-t pt-3" style="border-color: var(--el-border)">
           @if (videoUrl(); as url) {
             <video
               [src]="url"
@@ -118,7 +118,7 @@ import { ConceptView, isRejection, isStoryboard } from '../../core/api.models';
               style="background: #000; max-height: 420px"
             ></video>
             @if (renderMs(); as ms) {
-              <p class="mt-1.5 text-xs" style="color: var(--pv-muted)">
+              <p class="mt-1.5 text-xs" style="color: var(--el-muted)">
                 Rendered in {{ (ms / 1000).toFixed(0) }}s
               </p>
             }
@@ -134,7 +134,7 @@ import { ConceptView, isRejection, isStoryboard } from '../../core/api.models';
                 {{ rendering() ? 'Rendering…' : 'Render animation' }}
               </button>
               @if (rendering()) {
-                <span class="text-xs" style="color: var(--pv-muted)">
+                <span class="text-xs" style="color: var(--el-muted)">
                   Manim is drawing {{ board()!.beats.length }} beats — a minute or two.
                 </span>
               }

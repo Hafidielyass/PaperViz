@@ -1,4 +1,4 @@
-import { HttpClient, HttpErrorResponse } from '@angular/common/http';
+import { HttpClient, HttpErrorResponse, HttpParams } from '@angular/common/http';
 import { Injectable, inject } from '@angular/core';
 import { Observable, throwError } from 'rxjs';
 import { catchError } from 'rxjs/operators';
@@ -48,6 +48,18 @@ export class ApiService {
     const form = new FormData();
     form.append('file', file, file.name);
     return this.http.post<UploadResponse>(`${this.base}/papers`, form).pipe(catchError(toMessage));
+  }
+
+  /**
+   * Open-access URL path. The backend checks the allowlist or Unpaywall itself,
+   * so a URL that is not provably open access is rejected in API, not UI, code.
+   */
+  ingestUrl(url: string): Observable<UploadResponse> {
+    return this.http
+      .post<UploadResponse>(`${this.base}/papers/url`, {}, {
+        params: new HttpParams().set('url', url),
+      })
+      .pipe(catchError(toMessage));
   }
 
   reparse(id: string): Observable<UploadResponse> {

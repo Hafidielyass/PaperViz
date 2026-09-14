@@ -1,33 +1,124 @@
 @use "tailwindcss";
 
-// KaTeX ships its own stylesheet; without it every formula renders unstyled.
-@import "katex/dist/katex.min.css";
+/* Montserrat is the brand face, self-hosted so the app keeps working offline —
+   the whole point of running the model and the renderer locally. The weight
+   files are listed in angular.json rather than imported here: they are plain
+   CSS, and Sass will not accept "300" as a @use namespace. */
 
+/*
+  ELYRA — light only.
+
+  The palette follows Manus: a white page, a warm off-white for anything raised
+  off it, near-black rather than pure black for text and buttons, and borders
+  faint enough to read as separation instead of decoration. The restraint is
+  the design; the logo is the only strong mark on the page.
+*/
 :root {
-  color-scheme: light dark;
+  color-scheme: light;
 
-  --pv-bg: #ffffff;
-  --pv-fg: #171717;
-  --pv-muted: #737373;
-  --pv-border: #e5e5e5;
-  --pv-surface: #fafafa;
-}
+  --el-bg: #ffffff;
+  --el-surface: #faf9f7;      /* warm off-white for cards and wells */
+  --el-surface-2: #f2f0ec;    /* one step deeper, for inset areas */
+  --el-ink: #1a1a1a;          /* body text */
+  --el-ink-soft: #55534e;     /* secondary text */
+  --el-muted: #8a8780;        /* labels, metadata */
+  --el-border: #e6e3dd;
+  --el-border-strong: #d6d2ca;
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --pv-bg: #0a0a0a;
-    --pv-fg: #ededed;
-    --pv-muted: #a3a3a3;
-    --pv-border: #2a2a2a;
-    --pv-surface: #141414;
-  }
+  --el-accent: #1a1a19;       /* buttons are near-black, not a brand colour */
+  --el-accent-ink: #ffffff;
+
+  --el-ok: #2f7d5d;
+  --el-warn: #a8762a;
+  --el-bad: #b4483c;
+
+  --el-radius: 8px;           /* Manus uses 8px almost everywhere */
+  --el-radius-lg: 14px;
+
+  --el-shadow: 0 1px 2px rgba(26, 26, 26, 0.04), 0 8px 24px rgba(26, 26, 26, 0.04);
 }
 
 html,
 body {
   height: 100%;
   margin: 0;
-  background: var(--pv-bg);
-  color: var(--pv-fg);
-  font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  background: var(--el-bg);
+  color: var(--el-ink);
+  font-family: "Montserrat", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  font-weight: 400;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+/* Headings sit at normal weight and modest size. Manus's restraint comes from
+   never shouting; Montserrat at 600+ in large sizes undoes that immediately. */
+h1, h2, h3, h4 {
+  font-weight: 500;
+  letter-spacing: -0.015em;
+  margin: 0;
+}
+
+/* The wordmark: wide tracking and light weight, matching the logo lockup. */
+.el-wordmark {
+  font-weight: 300;
+  letter-spacing: 0.34em;
+  text-transform: uppercase;
+}
+
+.el-card {
+  background: var(--el-surface);
+  border: 1px solid var(--el-border);
+  border-radius: var(--el-radius-lg);
+}
+
+.el-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  border-radius: var(--el-radius);
+  font-size: 0.875rem;
+  font-weight: 500;
+  padding: 0.55rem 1rem;
+  background: var(--el-accent);
+  color: var(--el-accent-ink);
+  border: 1px solid var(--el-accent);
+  cursor: pointer;
+  transition: opacity 0.15s ease;
+}
+
+.el-btn:hover:not(:disabled) {
+  opacity: 0.85;
+}
+
+.el-btn:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.el-btn-ghost {
+  background: transparent;
+  color: var(--el-ink);
+  border-color: var(--el-border-strong);
+}
+
+.el-btn-ghost:hover:not(:disabled) {
+  background: var(--el-surface-2);
+  opacity: 1;
+}
+
+/* Reading column. Explainer prose is short, so it gets room rather than width. */
+.el-prose {
+  font-size: 1.0625rem;
+  line-height: 1.75;
+  color: var(--el-ink-soft);
+}
+
+.el-prose strong {
+  color: var(--el-ink);
+  font-weight: 600;
+}
+
+::selection {
+  background: #1a1a1a;
+  color: #ffffff;
 }

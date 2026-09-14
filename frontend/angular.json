@@ -33,6 +33,11 @@
               }
             ],
             "styles": [
+              "@fontsource/montserrat/300.css",
+              "@fontsource/montserrat/400.css",
+              "@fontsource/montserrat/500.css",
+              "@fontsource/montserrat/600.css",
+              "@fontsource/montserrat/700.css",
               "src/styles.scss"
             ]
           },

@@ -16,6 +16,7 @@ import { switchMap, timer } from 'rxjs';
 import { ApiService } from '../../core/api.service';
 import { Explainer, SegmentView, isInProgress } from '../../core/api.models';
 import { KatexDirective } from './katex.directive';
+import { LogoComponent } from '../../core/brand';
 
 /**
  * The explainer reader: short rewritten text with an animation beside each part.
@@ -25,8 +26,8 @@ import { KatexDirective } from './katex.directive';
  * only what the pipeline wrote.
  */
 @Component({
-  selector: 'pv-reader',
-  imports: [RouterLink, KatexDirective],
+  selector: 'el-reader',
+  imports: [RouterLink, KatexDirective, LogoComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   styles: [
     `
@@ -37,8 +38,24 @@ import { KatexDirective } from './katex.directive';
         min-height: 78vh;
       }
       .card {
-        border: 1px solid var(--pv-border);
-        background: var(--pv-surface);
+        border: 1px solid var(--el-border);
+        background: var(--el-surface);
+      }
+      /* A part is a reading unit, so it gets a full measure of space rather
+         than a boxed-in card. */
+      .seg h2 {
+        font-size: 1.6rem;
+        letter-spacing: -0.02em;
+      }
+      .eyebrow {
+        font-size: 0.6875rem;
+        letter-spacing: 0.18em;
+        color: var(--el-muted);
+      }
+      video {
+        border-radius: var(--el-radius);
+        border: 1px solid var(--el-border);
+        background: #000;
       }
       .body-text {
         line-height: 1.75;
@@ -69,11 +86,12 @@ import { KatexDirective } from './katex.directive';
   template: `
     <div class="mx-auto max-w-3xl px-6">
       <nav class="flex items-center gap-4 pt-6 text-xs">
-        <a routerLink="/" class="underline" style="color: var(--pv-muted)">&larr; library</a>
+        <a routerLink="/" class="mr-2 shrink-0"><el-logo [size]="22" /></a>
+        <a routerLink="/" style="color: var(--el-muted)">library</a>
         <a
           [routerLink]="['/papers', id()]"
           class="underline"
-          style="color: var(--pv-muted)"
+          style="color: var(--el-muted)"
           >source sections</a
         >
       </nav>
@@ -87,18 +105,18 @@ import { KatexDirective } from './katex.directive';
       @if (data(); as d) {
         <!-- Cover -->
         <header class="cover flex flex-col justify-center py-16">
-          <p class="mb-3 text-xs tracking-widest uppercase" style="color: var(--pv-muted)">
+          <p class="mb-3 text-xs tracking-widest uppercase" style="color: var(--el-muted)">
             Research paper
           </p>
           <h1 class="text-4xl leading-tight font-semibold tracking-tight">
             {{ d.paper.title || d.paper.originalFilename || 'Untitled' }}
           </h1>
           @if (d.paper.authors) {
-            <p class="mt-3 text-sm" style="color: var(--pv-muted)">{{ d.paper.authors }}</p>
+            <p class="mt-3 text-sm" style="color: var(--el-muted)">{{ d.paper.authors }}</p>
           }
 
           @if (d.segments.length > 0) {
-            <p class="mt-12 text-center text-xs tracking-widest uppercase" style="color: var(--pv-muted)">
+            <p class="mt-12 text-center text-xs tracking-widest uppercase" style="color: var(--el-muted)">
               Scroll to begin reading
             </p>
           }
@@ -116,34 +134,34 @@ import { KatexDirective } from './katex.directive';
                       class="inline-block h-2 w-2 shrink-0 rounded-full"
                       [style.background]="
                         step.state === 'done'
-                          ? '#10b981'
+                          ? 'var(--el-ok)'
                           : step.state === 'active'
-                            ? '#f59e0b'
-                            : 'var(--pv-border)'
+                            ? 'var(--el-warn)'
+                            : 'var(--el-border)'
                       "
                     ></span>
-                    <span [style.color]="step.state === 'pending' ? 'var(--pv-muted)' : 'inherit'">
+                    <span [style.color]="step.state === 'pending' ? 'var(--el-muted)' : 'inherit'">
                       {{ step.label }}
                     </span>
                     @if (step.state === 'active') {
-                      <span class="text-xs" style="color: var(--pv-muted)">working…</span>
+                      <span class="text-xs" style="color: var(--el-muted)">working…</span>
                     }
                   </li>
                 }
               </ol>
               @if (d.paper.statusDetail) {
-                <p class="mt-5 text-center text-xs" style="color: var(--pv-muted)">
+                <p class="mt-5 text-center text-xs" style="color: var(--el-muted)">
                   {{ d.paper.statusDetail }}
                 </p>
               }
             } @else {
-              <p class="mb-4 text-center text-sm" style="color: var(--pv-muted)">
+              <p class="mb-4 text-center text-sm" style="color: var(--el-muted)">
                 No explainer has been written for this paper yet.
               </p>
               <button
                 type="button"
                 class="rounded px-3 py-1.5 text-sm font-medium"
-                style="background: rgba(99,102,241,0.15); color: #6366f1"
+                style="background: var(--el-accent); color: var(--el-accent-ink)"
                 (click)="write()"
               >
                 Write the explainer
@@ -155,7 +173,7 @@ import { KatexDirective } from './katex.directive';
         <!-- Segments -->
         @for (s of d.segments; track s.id; let i = $index) {
           <section #seg class="seg card mb-10 rounded-xl p-8" [attr.data-index]="i">
-            <p class="mb-3 text-xs tracking-widest uppercase" style="color: var(--pv-muted)">
+            <p class="mb-3 text-xs tracking-widest uppercase" style="color: var(--el-muted)">
               {{ pad(i + 1) }} &nbsp;|&nbsp; Section {{ i + 1 }} of {{ d.segments.length }}
             </p>
 
@@ -174,13 +192,13 @@ import { KatexDirective } from './katex.directive';
             @if (s.keyTakeaway) {
               <p class="mt-5 text-sm">
                 <span class="font-semibold">Key takeaway:</span>
-                <span style="color: var(--pv-muted)"> {{ s.keyTakeaway }}</span>
+                <span style="color: var(--el-muted)"> {{ s.keyTakeaway }}</span>
               </p>
             }
 
             <!-- Animation -->
             <div class="mt-6">
-              <p class="mb-2 text-xs tracking-widest uppercase" style="color: var(--pv-muted)">
+              <p class="mb-2 text-xs tracking-widest uppercase" style="color: var(--el-muted)">
                 Visualization
               </p>
 
@@ -194,7 +212,7 @@ import { KatexDirective } from './katex.directive';
                   style="background: #000"
                 ></video>
               } @else if (rendering() === s.id) {
-                <div class="rounded-lg p-6 text-center text-sm" style="background: rgba(127,127,127,0.08); color: var(--pv-muted)">
+                <div class="rounded-lg p-6 text-center text-sm" style="background: rgba(127,127,127,0.08); color: var(--el-muted)">
                   Rendering the animation — a minute or two.
                 </div>
               } @else if (hasStoryboard(s)) {
@@ -208,7 +226,7 @@ import { KatexDirective } from './katex.directive';
                   Render animation
                 </button>
               } @else {
-                <p class="text-xs" style="color: var(--pv-muted)">
+                <p class="text-xs" style="color: var(--el-muted)">
                   No animation for this part.
                 </p>
               }
@@ -220,31 +238,31 @@ import { KatexDirective } from './katex.directive';
           <div class="rail flex justify-center pb-10">
             <span
               class="rounded-full px-3 py-1 text-xs backdrop-blur"
-              style="background: rgba(127,127,127,0.18); color: var(--pv-muted)"
+              style="background: rgba(127,127,127,0.18); color: var(--el-muted)"
             >
               {{ current() }} / {{ d.segments.length }}
             </span>
           </div>
 
           <footer class="pb-20 text-center">
-            <p class="text-xs tracking-widest uppercase" style="color: var(--pv-muted)">
+            <p class="text-xs tracking-widest uppercase" style="color: var(--el-muted)">
               End of paper
             </p>
             <div class="mt-3 flex justify-center gap-4 text-xs">
-              <button type="button" class="underline" style="color: var(--pv-muted)" (click)="toTop()">
+              <button type="button" class="underline" style="color: var(--el-muted)" (click)="toTop()">
                 Back to top
               </button>
-              <a [href]="pdfUrl()" target="_blank" rel="noopener" class="underline" style="color: var(--pv-muted)">
+              <a [href]="pdfUrl()" target="_blank" rel="noopener" class="underline" style="color: var(--el-muted)">
                 original PDF
               </a>
-              <button type="button" class="underline" style="color: var(--pv-muted)" (click)="write()">
+              <button type="button" class="underline" style="color: var(--el-muted)" (click)="write()">
                 rewrite
               </button>
             </div>
           </footer>
         }
       } @else if (!error()) {
-        <p class="py-20 text-sm" style="color: var(--pv-muted)">Loading…</p>
+        <p class="py-20 text-sm" style="color: var(--el-muted)">Loading…</p>
       }
     </div>
   `,

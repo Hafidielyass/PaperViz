@@ -64,6 +64,10 @@ paperviz:
     base-url: ${PAPERVIZ_GROBID_BASE_URL:http://localhost:8070}
   render:
     base-url: ${PAPERVIZ_RENDER_BASE_URL:http://localhost:8000}
+  unpaywall:
+    base-url: ${PAPERVIZ_UNPAYWALL_BASE_URL:https://api.unpaywall.org}
+    # Required for the open-access URL path only; blank until the operator sets it.
+    email: ${PAPERVIZ_UNPAYWALL_EMAIL:}
   # v1 is single-user; this row is seeded by V1__init.sql
   default-owner-id: 00000000-0000-0000-0000-000000000001
 
