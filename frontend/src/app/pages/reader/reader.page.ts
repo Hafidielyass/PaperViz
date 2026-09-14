@@ -105,14 +105,39 @@ import { KatexDirective } from './katex.directive';
         </header>
 
         @if (d.segments.length === 0) {
-          <div class="card mb-16 rounded-xl p-8 text-center">
+          <div class="card mb-16 rounded-xl p-8">
             @if (busy()) {
-              <p class="text-sm" style="color: var(--pv-muted)">
-                Writing the explainer — the model is choosing what matters and rewriting it.
-                This takes a few minutes.
-              </p>
+              <!-- Progress per stage: the whole build is several minutes, and a
+                   blank page for that long reads as a hang. -->
+              <ol class="mx-auto max-w-sm space-y-3 text-sm">
+                @for (step of pipeline(); track step.label) {
+                  <li class="flex items-center gap-3">
+                    <span
+                      class="inline-block h-2 w-2 shrink-0 rounded-full"
+                      [style.background]="
+                        step.state === 'done'
+                          ? '#10b981'
+                          : step.state === 'active'
+                            ? '#f59e0b'
+                            : 'var(--pv-border)'
+                      "
+                    ></span>
+                    <span [style.color]="step.state === 'pending' ? 'var(--pv-muted)' : 'inherit'">
+                      {{ step.label }}
+                    </span>
+                    @if (step.state === 'active') {
+                      <span class="text-xs" style="color: var(--pv-muted)">working…</span>
+                    }
+                  </li>
+                }
+              </ol>
+              @if (d.paper.statusDetail) {
+                <p class="mt-5 text-center text-xs" style="color: var(--pv-muted)">
+                  {{ d.paper.statusDetail }}
+                </p>
+              }
             } @else {
-              <p class="mb-4 text-sm" style="color: var(--pv-muted)">
+              <p class="mb-4 text-center text-sm" style="color: var(--pv-muted)">
                 No explainer has been written for this paper yet.
               </p>
               <button
@@ -240,6 +265,25 @@ export class ReaderPage {
   readonly busy = computed(() => {
     const d = this.data();
     return d ? isInProgress(d.paper.status) : false;
+  });
+
+  /** The stages of a build, and where this paper has got to. */
+  readonly pipeline = computed(() => {
+    const status = this.data()?.paper.status;
+    const order: Record<string, number> = {
+      UPLOADED: 0, PARSING: 0, PARSED: 1, ANALYZING: 1, ANALYZED: 1,
+      WRITING: 1, WRITTEN: 2, RENDERING: 2, READY: 3, FAILED: 3,
+    };
+    const reached = order[status ?? 'UPLOADED'] ?? 0;
+    const labels = [
+      'Reading the paper',
+      'Choosing and writing the parts',
+      'Rendering narrated animations',
+    ];
+    return labels.map((label, i) => ({
+      label,
+      state: i < reached ? 'done' : i === reached ? 'active' : 'pending',
+    }));
   });
 
   constructor() {

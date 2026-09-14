@@ -95,7 +95,7 @@ import { PaperSummary, isInProgress } from '../../core/api.models';
             @for (p of list; track p.id) {
               <li class="card rounded-lg p-4">
                 <div class="flex items-start justify-between gap-4">
-                  <a [routerLink]="['/papers', p.id]" class="min-w-0 flex-1 hover:underline">
+                  <a [routerLink]="['/read', p.id]" class="min-w-0 flex-1 hover:underline">
                     <p class="truncate font-medium">{{ p.title || p.originalFilename || 'Untitled' }}</p>
                     @if (p.authors) {
                       <p class="mt-0.5 truncate text-xs" style="color: var(--pv-muted)">{{ p.authors }}</p>
@@ -202,7 +202,9 @@ export class LibraryPage {
       next: (res) => {
         this.uploading.set(false);
         this.notice.set(res.message);
-        void this.router.navigate(['/papers', res.paperId]);
+        // Straight to the explainer. The verbatim section view at /papers/:id
+        // is a developer surface; nobody uploads a paper to read it back.
+        void this.router.navigate(['/read', res.paperId]);
       },
       error: (e: Error) => {
         this.uploading.set(false);

@@ -1,5 +1,6 @@
 package dev.paperviz.parsing;
 
+import dev.paperviz.ai.SegmentJobRunner;
 import dev.paperviz.ingestion.StorageService;
 import dev.paperviz.parsing.PaperParsingService.ParseTarget;
 import org.slf4j.Logger;
@@ -26,15 +27,18 @@ public class ParsingJobRunner {
     private final StorageService storage;
     private final GrobidClient grobid;
     private final TeiParser teiParser;
+    private final SegmentJobRunner segmentJobs;
 
     public ParsingJobRunner(PaperParsingService parsingService,
                             StorageService storage,
                             GrobidClient grobid,
-                            TeiParser teiParser) {
+                            TeiParser teiParser,
+                            SegmentJobRunner segmentJobs) {
         this.parsingService = parsingService;
         this.storage = storage;
         this.grobid = grobid;
         this.teiParser = teiParser;
+        this.segmentJobs = segmentJobs;
     }
 
     @Async("paperVizExecutor")
@@ -71,6 +75,12 @@ public class ParsingJobRunner {
             }
 
             parsingService.storeResult(paperId, parsed);
+
+            // Uploading a paper means wanting the explainer, not a pile of
+            // sections. Carry straight on into writing and rendering rather
+            // than making the reader know there is a second button.
+            log.info("paper {} parsed; starting the explainer", paperId);
+            segmentJobs.submit(paperId, dev.paperviz.ai.SegmentWriterAi.DEFAULT_SEGMENT_COUNT, true);
         } catch (Exception e) {
             log.error("parsing failed for paper {}", paperId, e);
             parsingService.markFailed(paperId, e);
