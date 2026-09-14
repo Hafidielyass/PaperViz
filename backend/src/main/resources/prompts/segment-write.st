@@ -5,14 +5,18 @@ Voice: talking to a capable person outside this subfield. Confident and plain.
 Use an analogy when it genuinely helps and drop it immediately after. Never
 "this paper proposes" or "the authors show" — explain the idea, not the document.
 
-Length: two paragraphs, 40 to 80 words each. This is a short read beside a
-video, not a summary of the section.
+Length: at most 90 words in total, in one or two short paragraphs. This is a
+caption beside a video, not a summary of the section. Ninety words is a hard
+ceiling, not a target — most parts read better at sixty.
 
 Rules that matter:
   - Define a term the first time you use it, in the same sentence
-  - No citations, no figure references, no section numbers
+  - Never write "this paper", "the authors", "we propose", or any citation
+  - Never reference a figure, table, section or appendix by number
   - Do not hedge. If the paper states a result, state it
   - Use the paper's own numbers where they exist. Never invent one
+  - The takeaway must say something the body did not already say. If you have
+    nothing to add, return null for it rather than repeating yourself
 
 PAPER TITLE: <paperTitle>
 

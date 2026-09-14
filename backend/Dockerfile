@@ -1,10 +1,13 @@
+# syntax=docker/dockerfile:1
 # ---- build ----
 FROM maven:3.9-eclipse-temurin-21 AS build
 WORKDIR /build
 
 # Dependency layer: only re-resolves when the pom changes.
 COPY pom.xml .
-RUN mvn -B -q dependency:go-offline
+# The cache mount matters here: this machine's connection drops mid-resolve
+# often enough that without it a failed build re-downloads the whole tree.
+RUN --mount=type=cache,target=/root/.m2/repository     mvn -B -q dependency:go-offline
 
 COPY src ./src
 
@@ -12,7 +15,7 @@ COPY src ./src
 # working route to Maven Central in this environment. Pass --build-arg
 # SKIP_TESTS=true for a fast iteration build.
 ARG SKIP_TESTS=false
-RUN mvn -B clean package -DskipTests=${SKIP_TESTS}
+RUN --mount=type=cache,target=/root/.m2/repository     mvn -B clean package -DskipTests=${SKIP_TESTS}
 
 # ---- runtime ----
 FROM eclipse-temurin:21-jre

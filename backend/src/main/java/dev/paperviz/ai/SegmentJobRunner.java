@@ -73,7 +73,7 @@ public class SegmentJobRunner {
 
             // Model call, outside any transaction.
             List<SegmentPlanItem> plan =
-                    writer.plan(target.paperTitle(), allSections, candidates, targetCount);
+                    writer.plan(target.paperTitle(), allSections, candidates);
             if (plan.isEmpty()) {
                 throw new IllegalStateException(
                         "The model could not choose which parts of this paper to explain.");

@@ -34,8 +34,15 @@ public class SegmentWriterAi {
 
     private static final Logger log = LoggerFactory.getLogger(SegmentWriterAi.class);
 
-    /** Matches what arXivisual shows, and what fits a single sitting. */
-    public static final int DEFAULT_SEGMENT_COUNT = 5;
+    /**
+      * How many parts an explainer runs to.
+      *
+      * The model proposes a count inside this range so a short paper is not
+      * padded and a dense one is not truncated; anything outside it is clamped.
+      */
+     public static final int MIN_SEGMENTS = 6;
+     public static final int MAX_SEGMENTS = 8;
+     public static final int DEFAULT_SEGMENT_COUNT = 7;
 
     private static final int MAX_SOURCE_CHARS = 7000;
     private static final int OUTLINE_SNIPPET_CHARS = 160;
@@ -47,13 +54,16 @@ public class SegmentWriterAi {
             .build();
 
     private final ChatClient chat;
+    private final SegmentCopyValidator copyValidator;
     private final Resource planPrompt;
     private final Resource writePrompt;
 
     public SegmentWriterAi(ChatClient.Builder chatClientBuilder,
+                           SegmentCopyValidator copyValidator,
                            @Value("classpath:/prompts/segment-plan.st") Resource planPrompt,
                            @Value("classpath:/prompts/segment-write.st") Resource writePrompt) {
         this.chat = chatClientBuilder.build();
+        this.copyValidator = copyValidator;
         this.planPrompt = planPrompt;
         this.writePrompt = writePrompt;
     }
@@ -74,13 +84,11 @@ public class SegmentWriterAi {
      */
     public List<SegmentPlanItem> plan(String paperTitle,
                                       List<Section> sections,
-                                      List<Concept> candidates,
-                                      int targetCount) {
+                                      List<Concept> candidates) {
         Map<String, Object> params = Map.of(
                 "paperTitle", nullSafe(paperTitle, "Untitled"),
                 "outline", buildOutline(sections),
-                "candidates", buildCandidateList(candidates),
-                "targetCount", String.valueOf(targetCount));
+                "candidates", buildCandidateList(candidates));
 
         String rendered = render(planPrompt, params);
 
@@ -94,12 +102,22 @@ public class SegmentWriterAi {
 
                 List<SegmentPlanItem> items = plan == null ? List.of() : plan.safeSegments().stream()
                         .filter(i -> i.title() != null && !i.title().isBlank())
-                        .limit(targetCount)
+                        .limit(MAX_SEGMENTS)
                         .toList();
 
-                if (!items.isEmpty()) {
+                if (items.size() >= MIN_SEGMENTS) {
                     log.info("planned {} segment(s) for '{}'", items.size(), paperTitle);
                     return items;
+                }
+                if (!items.isEmpty() && attempt == MAX_ATTEMPTS) {
+                    // Short of the range on the last try: a thin explainer beats none.
+                    log.warn("planner returned only {} segment(s); keeping them", items.size());
+                    return items;
+                }
+                if (!items.isEmpty()) {
+                    log.warn("plan attempt {}/{} returned {} segment(s), below the {} minimum",
+                            attempt, MAX_ATTEMPTS, items.size(), MIN_SEGMENTS);
+                    continue;
                 }
                 log.warn("plan attempt {}/{} produced no usable segments", attempt, MAX_ATTEMPTS);
             } catch (Exception e) {
@@ -119,26 +137,63 @@ public class SegmentWriterAi {
                 "formulas", buildFormulas(sources));
 
         String rendered = render(writePrompt, params);
+        String correction = "";
+        SegmentCopy best = null;
 
         for (int attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+            SegmentCopy copy;
             try {
-                SegmentCopy copy = chat.prompt()
+                ChatClient.ChatClientRequestSpec request = chat.prompt()
                         .user(rendered)
-                        .options(options(0.4))
-                        .call()
-                        .entity(SegmentCopy.class);
-
-                if (copy != null && copy.body() != null && !copy.body().isBlank()) {
-                    return copy;
+                        .options(options(0.4));
+                if (!correction.isBlank()) {
+                    request = request.system(correction);
                 }
-                log.warn("write attempt {}/{} for '{}' returned no body",
-                        attempt, MAX_ATTEMPTS, item.title());
+                copy = request.call().entity(SegmentCopy.class);
             } catch (Exception e) {
                 log.warn("write attempt {}/{} for '{}' failed: {}",
                         attempt, MAX_ATTEMPTS, item.title(), e.getMessage());
+                correction = "Your previous reply was not valid JSON in the requested shape. "
+                        + "Return only the JSON object.";
+                continue;
             }
+
+            if (copy == null || copy.body() == null || copy.body().isBlank()) {
+                log.warn("write attempt {}/{} for '{}' returned no body",
+                        attempt, MAX_ATTEMPTS, item.title());
+                continue;
+            }
+            best = copy;
+
+            SegmentCopyValidator.Result check = copyValidator.validate(copy);
+            if (check.ok()) {
+                return finish(copy);
+            }
+
+            log.warn("copy attempt {}/{} for '{}' rejected: {}",
+                    attempt, MAX_ATTEMPTS, item.title(), check.describe());
+            correction = "Your previous copy was rejected: " + check.describe()
+                    + " Fix every one of these. Stay under "
+                    + SegmentCopyValidator.MAX_WORDS + " words.";
+        }
+
+        // Out of attempts. Length is arithmetic, so trim it here rather than
+        // losing the part; anything else stands as written.
+        if (best != null) {
+            log.info("keeping the last copy for '{}' after trimming to the word limit",
+                    item.title());
+            return finish(best);
         }
         return null;
+    }
+
+    /** Applies the deterministic repairs: trim to length, drop an empty takeaway. */
+    private SegmentCopy finish(SegmentCopy copy) {
+        String body = copyValidator.trimToLimit(copy.body());
+        String takeaway = copyValidator.takeawayAddsSomething(copy.keyTakeaway(), body)
+                ? copy.keyTakeaway()
+                : null;
+        return new SegmentCopy(copy.title(), body, takeaway, copy.latex());
     }
 
     /** One line per section: enough to choose from, small enough to all fit. */
