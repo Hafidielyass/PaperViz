@@ -370,6 +370,7 @@ class StoryboardValidatorTest {
                         new SceneSpec.Visual(SceneSpec.VisualKind.DIAGRAM, null, null, null, d, null)),
                 beat(2, 6, "A square appears", words(12))));
 
-        assertThat(validator.validate(sb).describe()).contains("arrow to unknown node 'dec'");
+        // "id" not "node": an edge may now point at a group as well as a box.
+        assertThat(validator.validate(sb).describe()).contains("arrow to unknown id 'dec'");
     }
 }

@@ -302,6 +302,14 @@ public class StoryboardValidator {
         return problems;
     }
 
+    /**
+     * Checks a diagram in either form: bare nodes, groups, or both.
+     *
+     * Groups were added to the spec and to the renderer before this method knew
+     * about them, so every grouped diagram the model produced was rejected for
+     * "no nodes" and six parts in a row came out with no video at all. The box
+     * count and the id set both have to span groups, not just the flat list.
+     */
     private List<String> validateDiagram(int position, SceneSpec.Diagram diagram) {
         List<String> problems = new ArrayList<>();
         if (diagram == null) {
@@ -309,45 +317,74 @@ public class StoryboardValidator {
             return problems;
         }
 
-        List<SceneSpec.Node> nodes = diagram.safeNodes();
-        if (nodes.isEmpty()) {
-            problems.add("Beat %d diagram has no nodes.".formatted(position));
+        List<SceneSpec.Node> loose = diagram.safeNodes();
+        List<SceneSpec.Group> groups = diagram.safeGroups();
+
+        if (loose.isEmpty() && groups.isEmpty()) {
+            problems.add("Beat %d diagram is empty: give it groups or nodes.".formatted(position));
             return problems;
         }
-        if (nodes.size() > 8) {
+
+        int boxes = loose.size() + groups.stream().mapToInt(g -> g.safeNodes().size()).sum();
+        if (boxes > 8) {
             problems.add("Beat %d diagram has %d boxes; more than 8 will not fit the frame."
-                    .formatted(position, nodes.size()));
+                    .formatted(position, boxes));
+        }
+        if (groups.size() > 4) {
+            problems.add("Beat %d diagram has %d groups; keep it to 4 or fewer."
+                    .formatted(position, groups.size()));
         }
 
         Set<String> ids = new LinkedHashSet<>();
-        for (SceneSpec.Node node : nodes) {
-            if (node.id() == null || node.id().isBlank()) {
-                problems.add("Beat %d diagram has a node with no id.".formatted(position));
-            } else if (!ids.add(node.id())) {
-                problems.add("Beat %d diagram reuses node id '%s'.".formatted(position, node.id()));
+        for (SceneSpec.Node node : loose) {
+            problems.addAll(checkId(position, "node", node.id(), ids));
+        }
+        for (SceneSpec.Group group : groups) {
+            problems.addAll(checkId(position, "group", group.id(), ids));
+            if (group.label() == null || group.label().isBlank()) {
+                problems.add("Beat %d diagram has a group with no label; the label is what makes "
+                        + "a group explain anything.".formatted(position));
+            }
+            if (group.safeNodes().isEmpty()) {
+                problems.add("Beat %d diagram group '%s' has no boxes inside it."
+                        .formatted(position, group.label() == null ? group.id() : group.label()));
+            }
+            for (SceneSpec.Node node : group.safeNodes()) {
+                problems.addAll(checkId(position, "node", node.id(), ids));
             }
         }
+
+        // An edge may join a loose node, a whole group, or a box inside one.
         for (SceneSpec.Edge edge : diagram.safeEdges()) {
             if (edge.from() == null || !ids.contains(edge.from())) {
-                problems.add("Beat %d diagram has an arrow from unknown node '%s'."
+                problems.add("Beat %d diagram has an arrow from unknown id '%s'."
                         .formatted(position, edge.from()));
             }
             if (edge.to() == null || !ids.contains(edge.to())) {
-                problems.add("Beat %d diagram has an arrow to unknown node '%s'."
+                problems.add("Beat %d diagram has an arrow to unknown id '%s'."
                         .formatted(position, edge.to()));
             }
         }
         return problems;
     }
 
+    private List<String> checkId(int position, String what, String id, Set<String> seen) {
+        if (id == null || id.isBlank()) {
+            return List.of("Beat %d diagram has a %s with no id.".formatted(position, what));
+        }
+        if (!seen.add(id)) {
+            return List.of("Beat %d diagram reuses the id '%s'.".formatted(position, id));
+        }
+        return List.of();
+    }
+
     /**
-     * Rejects a storyboard that shows the same shape over and over.
+     * Rejects a storyboard that draws the same shape over and over.
      *
-     * The equality check catches two beats with identical payloads, but the
-     * real failure looks different: five DIAGRAM beats, each two boxes and an
-     * arrow, with only the labels changed. Those are different objects and
-     * identical pictures. Comparing structure rather than content is what
-     * catches it.
+     * The equality check catches identical payloads, but the real failure looks
+     * different: five DIAGRAM beats, each two boxes and an arrow, with only the
+     * labels changed. Different objects, identical pictures. Comparing
+     * structure rather than content is what catches it.
      */
     private List<String> checkForVariety(List<StoryboardBeat> beats) {
         if (beats.size() < 3) {
@@ -357,7 +394,7 @@ public class StoryboardValidator {
         // FREEFORM is excluded on purpose: its shape is opaque, so two of them
         // are indistinguishable here even when they draw different things. The
         // text-similarity check already covers that case, and counting them
-        // would mean rejecting a storyboard twice for one suspicion.
+        // would mean rejecting a storyboard twice over one suspicion.
         Map<String, Integer> shapes = new java.util.LinkedHashMap<>();
         int typed = 0;
         for (StoryboardBeat beat : beats) {
@@ -401,11 +438,10 @@ public class StoryboardValidator {
                 if (d == null) {
                     yield "an empty diagram";
                 }
-                int groups = d.safeGroups().size();
                 int boxes = d.safeNodes().size()
                         + d.safeGroups().stream().mapToInt(g -> g.safeNodes().size()).sum();
                 yield "a diagram of %d group(s), %d box(es), %d arrow(s)"
-                        .formatted(groups, boxes, d.safeEdges().size());
+                        .formatted(d.safeGroups().size(), boxes, d.safeEdges().size());
             }
             case CHART -> {
                 SceneSpec.Chart c = scene.chart();
