@@ -48,7 +48,7 @@ public class SystemHealthController {
 
         Map<String, Object> deps = new LinkedHashMap<>();
         deps.put("postgres", check(this::pingPostgres));
-        deps.put("ollama", check(() -> pingHttp(ollamaBaseUrl + "/api/tags")));
+        deps.put("ollama", check(this::pingOllama));
         deps.put("grobid", check(() -> pingHttp(props.getGrobid().getBaseUrl() + "/api/isalive")));
         deps.put("renderService", check(() -> pingHttp(props.getRender().getBaseUrl() + "/health")));
         body.put("dependencies", deps);
@@ -73,6 +73,35 @@ public class SystemHealthController {
         }
         result.put("latencyMs", Duration.ofNanos(System.nanoTime() - started).toMillis());
         return result;
+    }
+
+    /**
+     * Reports whether the model is on the GPU, not merely that Ollama answers.
+     *
+     * Reachability and capability are different things here: with the stack
+     * started without the GPU overlay, /api/tags responds perfectly while every
+     * actual generation is OOM-killed, because the 8B model needs about 5.5 GiB
+     * of system RAM on CPU. That failure is invisible until a paper dies
+     * several minutes in, so it belongs on the health page.
+     */
+    private String pingOllama() {
+        String tags = http.get().uri(ollamaBaseUrl + "/api/tags").retrieve().body(String.class);
+        int models = tags == null ? 0 : tags.split("\"name\"").length - 1;
+
+        String accelerator = "unknown";
+        try {
+            String ps = http.get().uri(ollamaBaseUrl + "/api/ps").retrieve().body(String.class);
+            if (ps != null && ps.contains("size_vram")) {
+                // size_vram of 0 means the weights are in system RAM.
+                accelerator = ps.matches("(?s).*\"size_vram\"\s*:\s*0[,}].*") ? "CPU" : "GPU";
+            } else if (ps != null) {
+                accelerator = "idle";
+            }
+        } catch (Exception e) {
+            accelerator = "unknown";
+        }
+
+        return "%d model(s) | running on %s".formatted(models, accelerator);
     }
 
     private String pingPostgres() {

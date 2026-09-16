@@ -30,6 +30,12 @@ services:
     container_name: paperviz-ollama
     ports:
       - "${OLLAMA_PORT:-11434}:11434"
+    environment:
+      # Never unload the model. It lives in VRAM, so keeping it resident costs
+      # nothing from the system memory budget, and the default 5m idle timeout
+      # means any pause in the pipeline is followed by a ~51 second reload
+      # before the next token is produced.
+      OLLAMA_KEEP_ALIVE: "-1"
     volumes:
       - ollama:/root/.ollama
     healthcheck:
@@ -74,7 +80,16 @@ services:
     ports:
       - "${GROBID_PORT:-8070}:8070"
     environment:
-      JAVA_OPTS: "-Xmx2g"
+      # 1g of heap is enough for the CRF models; the container ceiling below
+      # covers the JVM's off-heap use on top of that.
+      JAVA_OPTS: "-Xmx1536m"
+    # GROBID spikes to ~250% CPU during a parse. The CPU cap is what matters:
+    # it keeps a 20-second parse from taking every core from the model that
+    # runs for minutes afterwards. The memory ceiling is only a guard rail —
+    # measured use is ~2.8 GiB and a tighter cap gets the JVM OOM-killed
+    # mid-parse.
+    cpus: 4.0
+    mem_limit: 3g
     healthcheck:
       # This image ships neither curl nor wget — bash's /dev/tcp is the only probe available.
       test:
@@ -160,6 +175,29 @@ services:
       interval: 10s
       timeout: 5s
       retries: 20
+    networks: [paperviz]
+
+  # Development loop: Angular's dev server (live reload, /api proxied to the
+  # backend container) instead of the baked nginx build, so editing a
+  # .ts/.html/.css file shows up in the browser without a rebuild.
+  #   docker compose --profile dev up frontend-dev
+  # Do not run together with the production `frontend` (same host port).
+  frontend-dev:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile.dev
+    container_name: paperviz-frontend-dev
+    profiles: ["dev"]
+    depends_on:
+        backend:
+          condition: service_started
+    ports:
+      - "4200:4200"
+    volumes:
+      # Live source so edits hot-reload; node_modules stays inside the image so
+      # the cached npm-ci layer is reused and Windows bind files never corrupt it.
+      - ./frontend:/app
+      - /app/node_modules
     networks: [paperviz]
 
 volumes:

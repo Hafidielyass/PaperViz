@@ -76,23 +76,90 @@ public final class SceneSpec {
         }
     }
 
+    /**
+     * Roles drive colour. Matching the reference explainers, each role gets one
+     * hue used at full strength for the stroke and about a quarter opacity for
+     * the fill, so a viewer can tell an encoder from a decoder at a glance
+     * without reading the labels.
+     */
+    public enum Role {
+        INPUT, ENCODER, DECODER, ATTENTION, FEEDFORWARD, OUTPUT, NEUTRAL
+    }
+
     @JsonIgnoreProperties(ignoreUnknown = true)
-    public record Node(String id, String label) {
+    public record Node(String id, String label, Role role) {
+        public Role safeRole() {
+            return role == null ? Role.NEUTRAL : role;
+        }
+    }
+
+    /**
+     * A labelled container holding its own nodes.
+     *
+     * This is what turns a flat row of boxes into an architecture. "Encoder
+     * Stack ×6" wrapping a self-attention and a feed-forward box reads as a
+     * structure; the same two boxes side by side read as nothing.
+     *
+     * @param repeat drawn as "xN" beside the label, for stacked identical layers
+     * @param layout STACK for vertically stacked children, ROW for side by side
+     */
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    public record Group(
+            String id,
+            String label,
+            Integer repeat,
+            String layout,
+            Role role,
+            List<Node> nodes
+    ) {
+        public List<Node> safeNodes() {
+            return nodes == null ? List.of() : nodes;
+        }
+
+        public Role safeRole() {
+            return role == null ? Role.NEUTRAL : role;
+        }
+
+        public boolean stacked() {
+            return layout == null || !"ROW".equalsIgnoreCase(layout);
+        }
     }
 
     @JsonIgnoreProperties(ignoreUnknown = true)
     public record Edge(String from, String to, String label) {
     }
 
-    /** Boxes and arrows: encoder/decoder stacks, attention heads, data flow. */
+    /**
+     * Boxes and arrows: encoder/decoder stacks, attention heads, data flow.
+     *
+     * Either form works. Bare {@code nodes} give a simple row; {@code groups}
+     * give the nested structure that actually explains an architecture. Edges
+     * may join a node or a whole group.
+     */
     @JsonIgnoreProperties(ignoreUnknown = true)
-    public record Diagram(List<Node> nodes, List<Edge> edges) {
+    public record Diagram(List<Node> nodes, List<Edge> edges, List<Group> groups) {
         public List<Node> safeNodes() {
             return nodes == null ? List.of() : nodes;
         }
 
         public List<Edge> safeEdges() {
             return edges == null ? List.of() : edges;
+        }
+
+        public List<Group> safeGroups() {
+            return groups == null ? List.of() : groups;
+        }
+
+        /** Every id an edge is allowed to reference: bare nodes, groups, and grouped nodes. */
+        public java.util.Set<String> addressableIds() {
+            java.util.Set<String> ids = new java.util.LinkedHashSet<>();
+            safeNodes().forEach(n -> ids.add(n.id()));
+            for (Group g : safeGroups()) {
+                ids.add(g.id());
+                g.safeNodes().forEach(n -> ids.add(n.id()));
+            }
+            ids.remove(null);
+            return ids;
         }
     }
 

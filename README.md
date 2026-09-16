@@ -164,16 +164,26 @@ not a schema migration.
 
 ---
 
-## Development without Docker
+## Frontend development
 
-The containers are the source of truth, but for a fast frontend loop:
+The stack's `frontend` service bakes the production build into nginx at image
+build time, so **edits do not show up until you rebuild it**. For a live-reload
+loop, run the dev server instead:
 
 ```bash
-cd frontend && npm start     # proxies /api to localhost:8080
+docker compose --profile dev up frontend-dev        # http://localhost:4200, /api proxied to the backend
 ```
 
-and run just the backing services:
+Frontend `.ts/.html/.css` changes reload automatically; `--build` is only needed
+after `package.json` changes. Do not run it at the same time as the production
+`frontend` service (both use port 4200).
+
+The same loop works without Docker (`cd frontend && npm start`), proxying
+`/api` to `localhost:8080` for when the backend runs on the host.
+
+To develop on the host while the backing containers stay up, run just the
+infrastructure:
 
 ```bash
-docker compose up postgres ollama grobid render-service
+docker compose up postgres ollama grobid render-service backend
 ```

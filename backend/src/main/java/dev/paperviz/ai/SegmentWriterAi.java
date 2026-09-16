@@ -91,6 +91,7 @@ public class SegmentWriterAi {
                 "candidates", buildCandidateList(candidates));
 
         String rendered = render(planPrompt, params);
+        String lastFailure = null;
 
         for (int attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
             try {
@@ -121,10 +122,44 @@ public class SegmentWriterAi {
                 }
                 log.warn("plan attempt {}/{} produced no usable segments", attempt, MAX_ATTEMPTS);
             } catch (Exception e) {
-                log.warn("plan attempt {}/{} failed: {}", attempt, MAX_ATTEMPTS, e.getMessage());
+                lastFailure = e.getMessage();
+                log.warn("plan attempt {}/{} failed: {}", attempt, MAX_ATTEMPTS, lastFailure);
             }
         }
-        return List.of();
+        throw new PlanningFailedException(explain(lastFailure));
+    }
+
+    /**
+     * Turns the model runtime's own words into something a reader can act on.
+     *
+     * "The model could not choose which parts of this paper to explain" was the
+     * message for every planning failure, which is actively misleading when the
+     * real cause is that llama-server was killed for memory — it reads as a
+     * quality problem and sends you looking at prompts.
+     */
+    private String explain(String failure) {
+        if (failure == null) {
+            return "The model returned nothing usable when choosing which parts to explain.";
+        }
+        String lower = failure.toLowerCase(java.util.Locale.ROOT);
+        if (lower.contains("signal: killed") || lower.contains("out of memory")
+                || lower.contains("cudasuccess")) {
+            return "The language model ran out of memory and was killed. It is most likely "
+                    + "running on CPU: start the stack with ./scripts/up.sh so the model is "
+                    + "loaded onto the GPU, and close other Docker stacks competing for RAM.";
+        }
+        if (lower.contains("timeout") || lower.contains("timed out")) {
+            return "The language model did not respond in time. Check that Ollama is up and "
+                    + "not reloading the model.";
+        }
+        return "Planning failed: " + failure;
+    }
+
+    /** Carries a cause the UI can show verbatim. */
+    public static class PlanningFailedException extends RuntimeException {
+        public PlanningFailedException(String message) {
+            super(message);
+        }
     }
 
     /** Writes the explainer prose for one planned segment. */

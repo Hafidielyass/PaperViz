@@ -80,7 +80,7 @@ public class SegmentJobRunner {
                     writer.plan(target.paperTitle(), allSections, candidates);
             if (plan.isEmpty()) {
                 throw new IllegalStateException(
-                        "The model could not choose which parts of this paper to explain.");
+                        "The model returned no usable parts for this paper.");
             }
 
             Map<Integer, Section> byOrdinal = allSections.stream()

@@ -3,8 +3,11 @@ import { ChangeDetectionStrategy, Component, input, signal } from '@angular/core
 /** One place that knows what the product is called. */
 export const BRAND = {
   name: 'ELYRA',
-  tagline: 'Papers, explained visually.',
-  logoSrc: 'elyra-logo.svg',
+  tagline: '',
+  // ?v=2 because the previous response was immutable-cached for a year; the
+  // nginx location block for the logo now revalidates, so a v2 file will not
+  // eed bumping again.
+  logoSrc: 'elyra-logo.svg?v=2',
 } as const;
 
 /**

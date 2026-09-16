@@ -31,13 +31,29 @@ from manim import (
     FadeOut,
     GrowArrow,
     Rectangle,
+    RoundedRectangle,
     Scene,
     Text,
     VGroup,
     Write,
 )
-from manim import DOWN, LEFT, RIGHT, UP
-from manim import BLUE, GREY_B, TEAL, WHITE, YELLOW
+from manim import DOWN, LEFT, ORIGIN, RIGHT, UP
+from manim import BLUE, GREEN, GREY_B, MAROON, ORANGE, TEAL, WHITE, YELLOW
+
+# Role colours, matched to the reference explainers: the hue at full strength
+# for the stroke, and about a quarter opacity for the fill over black. That is
+# what makes an encoder legible as an encoder before the label is read.
+ROLE_COLOURS = {
+    "INPUT": TEAL,
+    "ENCODER": BLUE,
+    "DECODER": ORANGE,
+    "ATTENTION": MAROON,
+    "FEEDFORWARD": GREEN,
+    "OUTPUT": YELLOW,
+    "NEUTRAL": BLUE,
+}
+FILL_OPACITY = 0.25
+BOX_RADIUS = 0.12
 
 log = logging.getLogger(__name__)
 
@@ -199,55 +215,131 @@ def build_chart(spec: dict[str, Any]) -> Beat | None:
     return Beat(group, play)
 
 
+def _role_colour(role: Any) -> Any:
+    return ROLE_COLOURS.get(str(role or "NEUTRAL").upper(), BLUE)
+
+
+def _box(label: str, role: Any, min_width: float = 2.2) -> VGroup:
+    """One labelled box: coloured stroke, same hue at low opacity for the fill."""
+    colour = _role_colour(role)
+    text = Text(label, font_size=LABEL_SIZE, color=WHITE)
+    body = RoundedRectangle(
+        corner_radius=BOX_RADIUS,
+        width=max(text.width + 0.7, min_width),
+        height=max(text.height + 0.5, 0.78),
+        stroke_color=colour,
+        stroke_width=2.5,
+        fill_color=colour,
+        fill_opacity=FILL_OPACITY,
+    )
+    text.move_to(body.get_center())
+    return VGroup(body, text)
+
+
+def _group_block(group: dict[str, Any]) -> VGroup:
+    """A labelled container with its own boxes inside it.
+
+    The container is what carries the structure. Its label sits above it in the
+    group's own colour, with the repeat count appended, so "Encoder Stack x6"
+    reads as a stack rather than as one more box.
+    """
+    colour = _role_colour(group.get("role"))
+    children = group.get("nodes") or []
+
+    boxes = VGroup(*[_box(str(n.get("label") or n.get("id") or ""), n.get("role") or group.get("role"))
+                     for n in children])
+    if not len(boxes):
+        boxes = VGroup(_box(str(group.get("label") or ""), group.get("role")))
+
+    stacked = str(group.get("layout") or "STACK").upper() != "ROW"
+    boxes.arrange(DOWN if stacked else RIGHT, buff=0.22)
+
+    container = RoundedRectangle(
+        corner_radius=BOX_RADIUS + 0.04,
+        width=boxes.width + 0.55,
+        height=boxes.height + 0.55,
+        stroke_color=colour,
+        stroke_width=3,
+        fill_opacity=0,
+    )
+    container.move_to(boxes.get_center())
+
+    caption = str(group.get("label") or "")
+    repeat = group.get("repeat")
+    if repeat:
+        try:
+            caption = f"{caption} (x{int(repeat)})"
+        except (TypeError, ValueError):
+            pass
+
+    label = Text(caption, font_size=LABEL_SIZE, color=colour)
+    label.next_to(container, UP, buff=0.22)
+
+    return VGroup(container, boxes, label)
+
+
 def build_diagram(spec: dict[str, Any]) -> Beat | None:
-    """Boxes appear in turn, then arrows draw themselves between them."""
+    """An architecture: labelled groups side by side, joined by arrows.
+
+    Groups are what separate this from a row of rectangles. A flat node list
+    still works and is laid out as a row, but a diagram with groups is the one
+    that actually explains a model.
+    """
     diagram = spec.get("diagram") or {}
+    groups = diagram.get("groups") or []
     nodes = diagram.get("nodes") or []
     edges = diagram.get("edges") or []
-    if not nodes:
+
+    if not groups and not nodes:
         return None
 
-    boxes: dict[str, VGroup] = {}
+    blocks: dict[str, VGroup] = {}
     row = VGroup()
 
-    for node in nodes:
-        node_id = str(node.get("id") or "")
-        label = Text(str(node.get("label") or node_id), font_size=LABEL_SIZE, color=WHITE)
-        box = Rectangle(
-            width=max(label.width + 0.6, 1.8),
-            height=max(label.height + 0.5, 0.9),
-            color=BLUE,
-        )
-        label.move_to(box.get_center())
-        group = VGroup(box, label)
-        boxes[node_id] = group
-        row.add(group)
+    for group in groups:
+        block = _group_block(group)
+        gid = str(group.get("id") or group.get("label") or f"g{len(blocks)}")
+        blocks[gid] = block
+        # Grouped children are addressable too, so an edge can point at one.
+        for child in group.get("nodes") or []:
+            cid = str(child.get("id") or "")
+            if cid:
+                blocks.setdefault(cid, block)
+        row.add(block)
 
-    row.arrange(RIGHT, buff=1.1)
+    for node in nodes:
+        box = _box(str(node.get("label") or node.get("id") or ""), node.get("role"))
+        nid = str(node.get("id") or f"n{len(blocks)}")
+        blocks[nid] = box
+        row.add(box)
+
+    # Columns, generously spaced: the reference sets its encoder and decoder
+    # well apart rather than crowding them.
+    row.arrange(RIGHT, buff=1.6, aligned_edge=UP)
 
     arrows = VGroup()
     for edge in edges:
-        source = boxes.get(str(edge.get("from") or ""))
-        target = boxes.get(str(edge.get("to") or ""))
-        if source is None or target is None:
+        source = blocks.get(str(edge.get("from") or ""))
+        target = blocks.get(str(edge.get("to") or ""))
+        if source is None or target is None or source is target:
             continue
-        arrows.add(Arrow(source.get_right(), target.get_left(), buff=0.12, color=GREY_B))
+        arrows.add(Arrow(source.get_right(), target.get_left(),
+                         buff=0.18, color=GREY_B, stroke_width=3))
 
     whole = VGroup(row, arrows)
-    fit(whole)
+    fit(whole, width=CONTENT_WIDTH, height=CONTENT_HEIGHT - 0.8)
 
     def play(scene: Scene, m, seconds: float) -> None:
-        # Budget: boxes in sequence, then arrows, then hold.
-        box_time = min(0.5, max(0.2, seconds * 0.35 / max(len(row), 1)))
         used = 0.0
-        for box in row:
-            scene.play(Create(box), run_time=box_time)
-            used += box_time
-        if len(arrows) > 0:
-            arrow_time = min(0.6, max(0.25, seconds * 0.3 / len(arrows)))
+        per_block = min(0.7, max(0.25, seconds * 0.45 / max(len(row), 1)))
+        for block in row:
+            scene.play(FadeIn(block, shift=UP * 0.2), run_time=per_block)
+            used += per_block
+        if len(arrows):
+            per_arrow = min(0.6, max(0.25, seconds * 0.25 / len(arrows)))
             for arrow in arrows:
-                scene.play(GrowArrow(arrow), run_time=arrow_time)
-                used += arrow_time
+                scene.play(GrowArrow(arrow), run_time=per_arrow)
+                used += per_arrow
         _hold(scene, seconds, used)
 
     return Beat(whole, play)
@@ -329,7 +421,11 @@ def build_beat(spec: dict[str, Any]) -> Beat | None:
 
 
 class StoryboardScene(Scene):
-    """Plays a storyboard: a title card, then one shot per beat.
+    """Plays a storyboard: a held title, then one shot per beat beneath it.
+
+    The title stays on screen for the whole part. In the reference explainers
+    that header is what binds five separate shots into one piece; without it
+    each beat reads as an unrelated still.
 
     Beat durations arrive already reconciled against the measured narration, so
     the renderer never has to know about audio — it just fills the time it is
@@ -340,13 +436,20 @@ class StoryboardScene(Scene):
 
     def construct(self) -> None:
         beats = self.storyboard.get("beats") or []
-        title = (self.storyboard.get("title") or "").strip()
+        title_text = (self.storyboard.get("title") or "").strip()
 
-        if title:
-            card = fit(Text(title, font_size=TITLE_SIZE, color=WHITE), width=CONTENT_WIDTH - 2)
-            self.play(Write(card), run_time=0.9)
-            self.wait(0.9)
-            self.play(FadeOut(card, shift=UP * 0.4), run_time=0.4)
+        header = None
+        if title_text:
+            header = Text(title_text, font_size=TITLE_SIZE, color=WHITE)
+            fit(header, width=CONTENT_WIDTH - 1, height=1.0)
+            header.to_edge(UP, buff=0.45)
+            self.play(Write(header), run_time=1.0)
+            self.wait(1.0)
+
+        # Beats live below the header rather than centred on the frame, so the
+        # two never collide and the composition stays put between shots.
+        stage_height = CONTENT_HEIGHT - (1.3 if header is not None else 0.0)
+        stage_centre = ORIGIN + DOWN * (0.55 if header is not None else 0.0)
 
         previous = None
         for beat_spec in beats:
@@ -355,16 +458,19 @@ class StoryboardScene(Scene):
             beat = build_beat(spec)
 
             if beat is None:
-                # Nothing renderable — hold so the narration still lands.
                 self.wait(seconds)
                 continue
 
+            fit(beat.mobject, width=CONTENT_WIDTH, height=stage_height)
+            beat.mobject.move_to(stage_centre)
+
             if previous is not None:
-                self.play(FadeOut(previous, shift=DOWN * 0.3), run_time=0.35)
+                self.play(FadeOut(previous, shift=DOWN * 0.25), run_time=0.35)
                 seconds = max(0.5, seconds - 0.35)
 
             beat.play(self, beat.mobject, seconds)
             previous = beat.mobject
 
-        if previous is not None:
-            self.play(FadeOut(previous), run_time=0.5)
+        tail = [m for m in (previous, header) if m is not None]
+        if tail:
+            self.play(*[FadeOut(m) for m in tail], run_time=0.5)

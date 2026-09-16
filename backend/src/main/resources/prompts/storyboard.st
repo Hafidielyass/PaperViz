@@ -56,7 +56,7 @@ RELEVANT FORMULAS:
 Produce a storyboard with:
   title             a short title shown at the start, 2-6 words
   summary           one sentence describing the whole animation
-  totalSeconds      integer, 15 to 45, equal to the sum of the beat durations
+  totalSeconds      integer, 45 to 75, equal to the sum of the beat durations
   beats             the ordered list, each with:
       order           1-based position
       seconds         integer, 5 to 14

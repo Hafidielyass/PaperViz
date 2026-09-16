@@ -1,0 +1,17 @@
+# Development-only: runs Angular's dev server with live reload and a proxy to
+# the backend container, so frontend edits show up without rebuilding anything.
+# Started via `docker compose --profile dev up frontend-dev`. Production serving
+# (baked dist in nginx) is unchanged and lives in Dockerfile.
+FROM node:22-alpine
+
+WORKDIR /app
+
+COPY package.json package-lock.json ./
+# The npm layer is cached by the image build; source is bind-mounted at runtime,
+# so `docker compose up --build` is only needed after package.json changes.
+RUN npm ci --no-audit --fund=false
+
+# --poll: chokidar can miss inotify events on bind mounts (Windows/WSL).
+# --proxy-config: inside the container the API lives at backend:8080, not
+# localhost, so the host proxy.conf.json would 502.
+CMD ["npm", "start", "--", "--host", "0.0.0.0", "--proxy-config", "proxy.docker.conf.json", "--poll", "1000"]
