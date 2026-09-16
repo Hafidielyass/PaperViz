@@ -87,11 +87,30 @@ directly and always render correctly.
       not give you figures, do not use a CHART beat.
 
   {"kind": "DIAGRAM", "diagram": {
-      "nodes": [{"id": "enc", "label": "Encoder"},
-                {"id": "dec", "label": "Decoder"}],
+      "groups": [
+        {"id": "enc", "label": "Encoder Stack", "repeat": 6, "layout": "STACK",
+         "role": "ENCODER",
+         "nodes": [{"id": "sa", "label": "Self-Attention", "role": "ATTENTION"},
+                   {"id": "ff", "label": "Feed-Forward", "role": "FEEDFORWARD"}]},
+        {"id": "dec", "label": "Decoder Layer", "repeat": 6, "layout": "STACK",
+         "role": "DECODER",
+         "nodes": [{"id": "msa", "label": "Masked Self-Attn", "role": "ATTENTION"},
+                   {"id": "ca", "label": "Cross-Attention", "role": "OUTPUT"}]}],
       "edges": [{"from": "enc", "to": "dec", "label": "context"}]}}
-      Boxes and arrows, for architectures and data flow. At most 8 boxes. Every
-      edge must reference node ids that exist.
+
+      Architectures and data flow. PREFER GROUPS. A group is a labelled box
+      holding its own boxes, and that nesting is what makes a diagram explain
+      something: "Encoder Stack (x6)" wrapping self-attention and feed-forward
+      shows a structure, while the same two boxes sitting side by side show
+      nothing. Use "repeat" for a stack of identical layers.
+
+      role tints the box so the architecture is readable before the labels are:
+      INPUT, ENCODER, DECODER, ATTENTION, FEEDFORWARD, OUTPUT, NEUTRAL.
+      layout is STACK (children stacked vertically) or ROW.
+
+      A flat "nodes" list is still allowed for something genuinely simple, and
+      draws as a plain row. At most 8 boxes in total. Every edge must reference
+      an id that exists — a group id or a node id.
 
   {"kind": "TEXT", "text": "Three ingredients: queries, keys, values"}
       A short line on screen. Under 25 words.
@@ -102,6 +121,12 @@ directly and always render correctly.
 At least one beat must be a CHART, DIAGRAM or EQUATION. A part built only from
 text captions is a slideshow, and the reader already has the prose beside the
 video.
+
+Vary the kinds across the beats. Five diagrams in a row is the same picture
+five times even when the labels differ, and it is the most common way one of
+these goes wrong. A part that shows a structure, then the formula behind it,
+then the numbers it produces is worth far more than three views of one box
+diagram. Repeat a kind only when the second use genuinely shows something new.
 
 Reach for EQUATION when the paper states a formula, and for CHART when it
 reports numbers worth comparing. Where the paper gives no figures, a DIAGRAM of

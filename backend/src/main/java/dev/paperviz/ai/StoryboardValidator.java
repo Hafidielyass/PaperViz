@@ -7,6 +7,7 @@ import org.springframework.stereotype.Component;
 import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Locale;
 import java.util.Set;
 
@@ -94,6 +95,7 @@ public class StoryboardValidator {
 
         problems.addAll(findRepeatedVisuals(beats));
         problems.addAll(checkItIsAnAnimation(beats));
+        problems.addAll(checkForVariety(beats));
 
         if (summed < MIN_TOTAL_SECONDS || summed > MAX_TOTAL_SECONDS) {
             problems.add("Total runtime %ds is outside %d-%ds."
@@ -336,6 +338,86 @@ public class StoryboardValidator {
             }
         }
         return problems;
+    }
+
+    /**
+     * Rejects a storyboard that shows the same shape over and over.
+     *
+     * The equality check catches two beats with identical payloads, but the
+     * real failure looks different: five DIAGRAM beats, each two boxes and an
+     * arrow, with only the labels changed. Those are different objects and
+     * identical pictures. Comparing structure rather than content is what
+     * catches it.
+     */
+    private List<String> checkForVariety(List<StoryboardBeat> beats) {
+        if (beats.size() < 3) {
+            return List.of();
+        }
+
+        // FREEFORM is excluded on purpose: its shape is opaque, so two of them
+        // are indistinguishable here even when they draw different things. The
+        // text-similarity check already covers that case, and counting them
+        // would mean rejecting a storyboard twice for one suspicion.
+        Map<String, Integer> shapes = new java.util.LinkedHashMap<>();
+        int typed = 0;
+        for (StoryboardBeat beat : beats) {
+            SceneSpec.Visual scene = beat.effectiveScene();
+            if (scene.kind() == SceneSpec.VisualKind.FREEFORM) {
+                continue;
+            }
+            typed++;
+            shapes.merge(shapeOf(scene), 1, Integer::sum);
+        }
+        if (typed < 3) {
+            return List.of();
+        }
+
+        List<String> problems = new ArrayList<>();
+        int limit = Math.max(2, (typed + 1) / 2);
+        for (Map.Entry<String, Integer> entry : shapes.entrySet()) {
+            if (entry.getValue() > limit) {
+                problems.add(("%d of %d drawn beats show the same thing (%s), so the part barely "
+                        + "changes. Vary what each beat shows — a structure, then the formula "
+                        + "behind it, then the numbers it produces.")
+                        .formatted(entry.getValue(), typed, entry.getKey()));
+            }
+        }
+        return problems;
+    }
+
+    /**
+     * A beat's shape: its kind plus the size of what it draws, ignoring labels.
+     *
+     * Two diagrams of two boxes and one arrow share a shape however they are
+     * captioned, which is exactly the case worth rejecting.
+     */
+    private String shapeOf(SceneSpec.Visual scene) {
+        if (scene == null || scene.kind() == null) {
+            return "nothing";
+        }
+        return switch (scene.kind()) {
+            case DIAGRAM -> {
+                SceneSpec.Diagram d = scene.diagram();
+                if (d == null) {
+                    yield "an empty diagram";
+                }
+                int groups = d.safeGroups().size();
+                int boxes = d.safeNodes().size()
+                        + d.safeGroups().stream().mapToInt(g -> g.safeNodes().size()).sum();
+                yield "a diagram of %d group(s), %d box(es), %d arrow(s)"
+                        .formatted(groups, boxes, d.safeEdges().size());
+            }
+            case CHART -> {
+                SceneSpec.Chart c = scene.chart();
+                yield c == null ? "an empty chart"
+                        : "a %s chart of %d categories".formatted(
+                                c.kind() == null ? "bar" : c.kind().name().toLowerCase(Locale.ROOT),
+                                c.safeCategories().size());
+            }
+            case EQUATION -> "an equation";
+            case TEXT -> "a text caption";
+            case FREEFORM -> "a freeform visual";
+        };
     }
 
     /**

@@ -361,8 +361,9 @@ class StoryboardValidatorTest {
     @Test
     void rejectsADiagramArrowPointingAtANodeThatDoesNotExist() {
         SceneSpec.Diagram d = new SceneSpec.Diagram(
-                List.of(new SceneSpec.Node("enc", "Encoder")),
-                List.of(new SceneSpec.Edge("enc", "dec", "context")));
+                List.of(new SceneSpec.Node("enc", "Encoder", null)),
+                List.of(new SceneSpec.Edge("enc", "dec", "context")),
+                null);
 
         Storyboard sb = board(List.of(
                 scened(1, 6, "Encoder and decoder",
